@@ -1,0 +1,9 @@
+services:
+  volkron-servicios-api:
+    build: .
+    container_name: volkron-servicios-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
