@@ -3,7 +3,16 @@ services:
     build: .
     container_name: volkron-servicios-api
     restart: unless-stopped
+
     env_file:
       - .env
-    ports:
-      - "9001:9001"
+
+    expose:
+      - "9001"
+
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
