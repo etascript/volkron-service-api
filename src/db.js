@@ -108,7 +108,6 @@ function migrate(database) {
 
     CREATE INDEX IF NOT EXISTS idx_submissions_form_created ON submissions(form_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_submissions_status ON submissions(status);
-    CREATE INDEX IF NOT EXISTS idx_submissions_deleted ON submissions(deleted_at);
     CREATE INDEX IF NOT EXISTS idx_submission_values_field ON submission_values(field_name, value);
     CREATE INDEX IF NOT EXISTS idx_submission_events_submission ON submission_events(submission_id, created_at);
   `);
@@ -120,6 +119,8 @@ function migrate(database) {
   if (!submissionColumns.includes('deleted_note')) {
     database.exec('ALTER TABLE submissions ADD COLUMN deleted_note TEXT');
   }
+
+  database.exec('CREATE INDEX IF NOT EXISTS idx_submissions_deleted ON submissions(deleted_at)');
 }
 
 function seedQuoteForm(database) {
