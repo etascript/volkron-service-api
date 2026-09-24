@@ -592,14 +592,32 @@ h1 {
   padding: 0 12px;
 }
 
-.login-error {
+.login-error,
+.login-success {
   display: none;
-  color: var(--red);
   font-weight: 700;
 }
 
-.login-error.is-visible {
+.login-error {
+  color: var(--red);
+}
+
+.login-success {
+  color: var(--green);
+}
+
+.login-error.is-visible,
+.login-success.is-visible {
   display: block;
+}
+
+.login-link {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-align: center;
+  text-transform: uppercase;
 }
 
 .stats-grid {
@@ -808,6 +826,84 @@ h1 {
   color: var(--red);
 }
 
+.schedule-form {
+  display: grid;
+  gap: 16px;
+}
+
+.schedule-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.schedule-grid label {
+  display: grid;
+  gap: 6px;
+}
+
+.schedule-grid label > span,
+.schedule-card label > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.schedule-grid input,
+.schedule-grid select,
+.override-slot input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  padding: 0 12px;
+}
+
+.schedule-list {
+  display: grid;
+  gap: 12px;
+}
+
+.schedule-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.schedule-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.schedule-card__head strong {
+  text-transform: uppercase;
+}
+
+.schedule-small-button {
+  min-height: 38px;
+  color: var(--ink);
+}
+
+.override-slots {
+  display: grid;
+  gap: 8px;
+}
+
+.override-slot {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  padding: 10px;
+  background: #f7f7f4;
+}
+
 @media (min-width: 720px) {
   .stats-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -828,6 +924,19 @@ h1 {
 
   .admin-form__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .schedule-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .schedule-grid--wide {
+    grid-column: 1 / -1;
+  }
+
+  .override-slot {
+    grid-template-columns: 1fr 1fr 100px auto;
+    align-items: center;
   }
 }
 

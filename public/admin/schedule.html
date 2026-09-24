@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Kellu - Agenda</title>
+    <link rel="stylesheet" href="/admin/assets/admin.css">
+  </head>
+  <body>
+    <div class="admin-layout">
+      <div class="sidebar-backdrop" data-sidebar-close></div>
+      <aside class="sidebar" data-sidebar>
+        <div class="sidebar__brand">
+          <span class="eyebrow">Kellu</span>
+          <strong>Panel operativo</strong>
+        </div>
+        <nav class="sidebar__nav" aria-label="Navegacion admin">
+          <a href="/admin">Cotizaciones</a>
+          <a href="/admin/new">Nueva solicitud</a>
+          <a href="/admin/stats">Estadisticas</a>
+          <a class="is-active" href="/admin/schedule">Agenda</a>
+          <a href="/admin/settings">Opciones</a>
+        </nav>
+        <form class="sidebar__logout" method="post" action="/admin/logout">
+          <button class="ghost-button" type="submit">Salir</button>
+        </form>
+      </aside>
+
+      <div class="admin-main">
+        <header class="topbar">
+          <button class="menu-button" type="button" data-sidebar-toggle aria-label="Abrir menu">Menu</button>
+          <div>
+            <span class="eyebrow">Formulario cotizacion</span>
+            <h1>Agenda</h1>
+          </div>
+          <div class="topbar__actions">
+            <button class="ghost-button" type="button" data-add-slot>Agregar horario</button>
+            <button class="ghost-button" type="button" data-add-override>Agregar excepcion</button>
+          </div>
+        </header>
+
+        <main class="shell">
+          <form class="schedule-form" data-schedule-form>
+            <section class="settings-panel">
+              <div class="settings-panel__head">
+                <div>
+                  <span class="eyebrow">Configuracion general</span>
+                  <h2>Disponibilidad</h2>
+                </div>
+              </div>
+              <div class="schedule-grid">
+                <label class="status-default">
+                  <input type="checkbox" name="enabled">
+                  <span>Agenda activa</span>
+                </label>
+                <label>
+                  <span>Zona horaria</span>
+                  <input name="timezone" placeholder="America/Santiago">
+                </label>
+                <label>
+                  <span>Meses de anticipacion</span>
+                  <input name="lookaheadMonths" type="number" min="1" max="24">
+                </label>
+                <label>
+                  <span>Feriados nacionales</span>
+                  <select name="holidayMode">
+                    <option value="none">No considerar</option>
+                    <option value="national_block">Bloquear automaticamente</option>
+                    <option value="manual_only">Solo bloqueos manuales</option>
+                    <option value="custom">Usar horarios especiales</option>
+                  </select>
+                </label>
+              </div>
+            </section>
+
+            <section class="settings-panel">
+              <div class="settings-panel__head">
+                <div>
+                  <span class="eyebrow">Reglas base</span>
+                  <h2>Horarios</h2>
+                </div>
+              </div>
+              <div class="schedule-list" data-slots></div>
+            </section>
+
+            <section class="settings-panel">
+              <div class="settings-panel__head">
+                <div>
+                  <span class="eyebrow">Bloqueos y excepciones</span>
+                  <h2>Fechas especiales</h2>
+                </div>
+              </div>
+              <div class="schedule-list" data-overrides></div>
+            </section>
+
+            <div class="form-feedback" data-schedule-feedback aria-live="polite"></div>
+            <button class="primary-button" type="submit">Guardar agenda</button>
+          </form>
+        </main>
+      </div>
+    </div>
+
+    <script src="/admin/assets/layout.js" defer></script>
+    <script src="/admin/assets/schedule.js" defer></script>
+  </body>
+</html>

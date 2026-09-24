@@ -106,10 +106,79 @@ function migrate(database) {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS admin_users (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL UNIQUE,
+      name TEXT,
+      password_hash TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      used_at TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS form_schedule_settings (
+      form_id TEXT PRIMARY KEY REFERENCES forms(id) ON DELETE CASCADE,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      timezone TEXT NOT NULL DEFAULT 'America/Santiago',
+      lookahead_months INTEGER NOT NULL DEFAULT 6,
+      holiday_mode TEXT NOT NULL DEFAULT 'national_block',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS form_schedule_slots (
+      id TEXT PRIMARY KEY,
+      form_id TEXT NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
+      day_type TEXT NOT NULL DEFAULT 'weekday',
+      weekday INTEGER,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      capacity INTEGER NOT NULL DEFAULT 1,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS form_schedule_overrides (
+      id TEXT PRIMARY KEY,
+      form_id TEXT NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
+      date TEXT NOT NULL,
+      mode TEXT NOT NULL,
+      reason TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(form_id, date)
+    );
+
+    CREATE TABLE IF NOT EXISTS form_schedule_override_slots (
+      id TEXT PRIMARY KEY,
+      override_id TEXT NOT NULL REFERENCES form_schedule_overrides(id) ON DELETE CASCADE,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      capacity INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_submissions_form_created ON submissions(form_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_submissions_status ON submissions(status);
     CREATE INDEX IF NOT EXISTS idx_submission_values_field ON submission_values(field_name, value);
     CREATE INDEX IF NOT EXISTS idx_submission_events_submission ON submission_events(submission_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_admin_users_login ON admin_users(username, email, status);
+    CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash ON password_reset_tokens(token_hash, expires_at, used_at);
+    CREATE INDEX IF NOT EXISTS idx_schedule_slots_form ON form_schedule_slots(form_id, day_type, weekday, enabled);
+    CREATE INDEX IF NOT EXISTS idx_schedule_overrides_form_date ON form_schedule_overrides(form_id, date);
   `);
 
   const submissionColumns = database.prepare('PRAGMA table_info(submissions)').all().map((column) => column.name);
@@ -157,5 +226,45 @@ function seedQuoteForm(database) {
     quoteStatuses.forEach(([value, label, isDefault, sortOrder]) => {
       insertStatus.run(`status_cotizacion_${value}`, formId, value, label, isDefault, sortOrder, now, now);
     });
+  }
+
+  const hasSchedule = database.prepare('SELECT form_id FROM form_schedule_settings WHERE form_id = ?').get(formId);
+  if (!hasSchedule) {
+    database.prepare(`
+      INSERT INTO form_schedule_settings
+        (form_id, enabled, timezone, lookahead_months, holiday_mode, created_at, updated_at)
+      VALUES
+        (?, ?, ?, ?, ?, ?, ?)
+    `).run(formId, 1, 'America/Santiago', config.lookaheadMonths, 'national_block', now, now);
+
+    const insertSlot = database.prepare(`
+      INSERT INTO form_schedule_slots
+        (id, form_id, day_type, weekday, start_time, end_time, capacity, enabled, sort_order, created_at, updated_at)
+      VALUES
+        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const legacySlots = config.availableSlots.map((slot) => {
+      const [start, end] = slot.split('-').map((part) => part.trim());
+      return { start, end: end || start };
+    });
+
+    for (let weekday = 1; weekday <= 5; weekday += 1) {
+      legacySlots.forEach((slot, index) => {
+        insertSlot.run(
+          `slot_${formId}_${weekday}_${index + 1}`,
+          formId,
+          'weekday',
+          weekday,
+          slot.start,
+          slot.end,
+          1,
+          1,
+          weekday * 100 + index,
+          now,
+          now,
+        );
+      });
+    }
   }
 }

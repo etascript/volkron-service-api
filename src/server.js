@@ -7,9 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
 import {
-  buildMonthAvailability,
   currentMonthKey,
-  isDateSelectable,
   normalizeDate,
   normalizeMonthFromDate,
 } from './calendar.js';
@@ -21,13 +19,17 @@ import {
   appendStatusEvent,
   createManualQuote,
   deleteQuote,
-  getReservedSlotsFromAdmin,
+  getFormSchedule,
   getSettings,
   getStats,
   listQuotes,
+  saveFormSchedule,
   updateSettings,
 } from './admin.js';
 import { createSubmission } from './forms.js';
+import { authenticateAdminUser, createPasswordReset, getValidPasswordReset, resetPasswordWithToken } from './admin-users.js';
+import { sendPasswordResetEmail } from './mail.js';
+import { buildFormAvailability, isFormDateSelectable } from './schedule.js';
 
 const logger = pino({ level: config.nodeEnv === 'production' ? 'info' : 'debug' });
 const app = express();
@@ -60,7 +62,9 @@ function signSession(payload) {
 
 function createSessionToken(user) {
   const payload = Buffer.from(JSON.stringify({
-    user,
+    id: user.id,
+    username: user.username,
+    email: user.email,
     exp: Date.now() + 12 * 60 * 60 * 1000,
   })).toString('base64url');
   return `${payload}.${signSession(payload)}`;
@@ -73,7 +77,7 @@ function verifySessionToken(token) {
 
   try {
     const session = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-    return session.user === config.adminUser && Number(session.exp) > Date.now();
+    return Boolean(session.id) && Number(session.exp) > Date.now();
   } catch {
     return false;
   }
@@ -94,11 +98,6 @@ function wantsJson(req) {
 }
 
 function adminSessionAuth(req, res, next) {
-  if (!config.adminUser || !config.adminPassword) {
-    logger.error('admin auth is not configured');
-    return res.status(503).send('Admin no configurado');
-  }
-
   if (!verifySessionToken(parseCookies(req).volkron_admin)) {
     if (wantsJson(req)) return res.status(401).json({ ok: false, message: 'Sesion requerida' });
     return res.redirect('/admin/login');
@@ -136,6 +135,7 @@ app.get('/', (_req, res) => {
     endpoints: {
       health: '/health',
       availability: '/api/availability?month=YYYY-MM',
+      formAvailability: '/api/forms/cotizacion/availability?month=YYYY-MM',
       holidays: '/api/holidays?year=YYYY',
       quote: '/api/quote',
       admin: '/admin',
@@ -151,8 +151,17 @@ app.get('/api/availability', async (req, res, next) => {
   try {
     const month = String(req.query.month || currentMonthKey());
     const holidays = await getHolidaySet();
-    const reservedByDate = await getReservedSlotsFromAdmin(month);
-    res.json(buildMonthAvailability(month, reservedByDate, holidays));
+    res.json(buildFormAvailability('cotizacion', month, holidays));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/forms/:slug/availability', async (req, res, next) => {
+  try {
+    const month = String(req.query.month || currentMonthKey());
+    const holidays = await getHolidaySet();
+    res.json(buildFormAvailability(req.params.slug, month, holidays));
   } catch (error) {
     next(error);
   }
@@ -178,19 +187,51 @@ app.get('/admin/login', (_req, res) => {
 app.post('/admin/login', (req, res) => {
   const user = String(req.body.user || '');
   const password = String(req.body.password || '');
-
-  if (!config.adminUser || !config.adminPassword) return res.status(503).send('Admin no configurado');
-
-  if (!safeCompare(user, config.adminUser) || !safeCompare(password, config.adminPassword)) {
+  const adminUser = authenticateAdminUser(user, password);
+  if (!adminUser) {
     return res.redirect('/admin/login?error=1');
   }
 
-  res.set('Set-Cookie', sessionCookie(createSessionToken(user)));
+  res.set('Set-Cookie', sessionCookie(createSessionToken(adminUser)));
   return res.redirect('/admin');
 });
 
+app.get('/admin/forgot-password', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(publicDir, 'admin', 'forgot-password.html'));
+});
+
+app.post('/admin/forgot-password', async (req, res, next) => {
+  try {
+    const reset = createPasswordReset(req.body.email);
+    if (reset) {
+      const result = await sendPasswordResetEmail(reset);
+      if (!result.sent) logger.warn({ resetUrl: result.url }, 'smtp not configured; password reset link generated');
+    }
+    return res.redirect('/admin/forgot-password?sent=1');
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/admin/reset-password', (req, res) => {
+  if (!getValidPasswordReset(req.query.token)) return res.redirect('/admin/forgot-password?invalid=1');
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(publicDir, 'admin', 'reset-password.html'));
+});
+
+app.post('/admin/reset-password', (req, res) => {
+  const password = String(req.body.password || '');
+  const passwordConfirm = String(req.body.password_confirm || '');
+  if (password !== passwordConfirm) return res.redirect('/admin/reset-password?token=' + encodeURIComponent(req.body.token || '') + '&error=match');
+
+  const result = resetPasswordWithToken(req.body.token, password);
+  if (!result.ok) return res.redirect('/admin/forgot-password?invalid=1');
+  return res.redirect('/admin/login?reset=1');
+});
+
 app.use('/admin', (req, res, next) => {
-  if (req.path === '/login') return next();
+  if (['/login', '/forgot-password', '/reset-password'].includes(req.path)) return next();
   return adminSessionAuth(req, res, next);
 });
 
@@ -212,6 +253,11 @@ app.get('/admin/new', (_req, res) => {
 app.get('/admin/settings', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.sendFile(path.join(publicDir, 'admin', 'settings.html'));
+});
+
+app.get('/admin/schedule', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(publicDir, 'admin', 'schedule.html'));
 });
 
 app.post('/admin/logout', (_req, res) => {
@@ -264,6 +310,24 @@ app.post('/admin/api/settings', async (req, res, next) => {
   }
 });
 
+app.get('/admin/api/forms/:slug/schedule', async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.json(await getFormSchedule(req.params.slug));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/admin/api/forms/:slug/schedule', async (req, res, next) => {
+  try {
+    const result = await saveFormSchedule(req.params.slug, req.body);
+    res.status(result.status).json(result.body);
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post('/admin/api/quotes/:id/status', async (req, res, next) => {
   try {
     const result = await appendStatusEvent(req.params.id, req.body);
@@ -308,8 +372,7 @@ app.post('/api/quote', async (req, res, next) => {
 
       const month = normalizeMonthFromDate(normalizedDate);
       const holidays = await getHolidaySet();
-      const reservedByDate = await getReservedSlotsFromAdmin(month);
-      if (!isDateSelectable(normalizedDate, reservedByDate, quote.horario, holidays)) {
+      if (!isFormDateSelectable('cotizacion', normalizedDate, quote.horario, holidays)) {
         return res.status(409).json({ ok: false, message: 'El horario seleccionado ya no esta disponible' });
       }
     }

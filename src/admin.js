@@ -8,6 +8,7 @@ import {
   updateFormStatuses,
 } from './forms.js';
 import { quoteSchema } from './validation.js';
+import { getSchedule, updateSchedule } from './schedule.js';
 
 const statusSchema = z.object({
   status: z.string().trim().min(1).max(80),
@@ -200,6 +201,14 @@ export async function getSettings() {
     statuses,
     defaultStatus: statuses.find((status) => status.isDefault)?.value || statuses[0]?.value || '',
   };
+}
+
+export async function getFormSchedule(formSlug = 'cotizacion') {
+  return getSchedule(formSlug);
+}
+
+export async function saveFormSchedule(formSlug, payload) {
+  return updateSchedule(formSlug, payload);
 }
 
 export async function updateSettings(payload) {

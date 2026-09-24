@@ -22,13 +22,19 @@
             <input name="password" type="password" autocomplete="current-password" required>
           </label>
           <div class="login-error" data-login-error>Credenciales invalidas.</div>
+          <div class="login-success" data-reset-success>Clave actualizada. Ya puedes ingresar.</div>
           <button class="primary-button" type="submit">Ingresar</button>
+          <a class="login-link" href="/admin/forgot-password">Olvide mi clave</a>
         </form>
       </section>
     </main>
     <script>
-      if (new URLSearchParams(window.location.search).get('error')) {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('error')) {
         document.querySelector('[data-login-error]').classList.add('is-visible');
+      }
+      if (params.get('reset')) {
+        document.querySelector('[data-reset-success]').classList.add('is-visible');
       }
     </script>
   </body>
