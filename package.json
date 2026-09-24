@@ -6,9 +6,11 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "encrypt:data": "node scripts/encrypt-existing-data.js"
+    "encrypt:data": "node scripts/encrypt-existing-data.js",
+    "migrate:sqlite": "node scripts/migrate-jsonl-to-sqlite.js"
   },
   "dependencies": {
+    "better-sqlite3": "^13.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",

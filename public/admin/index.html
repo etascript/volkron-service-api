@@ -13,8 +13,14 @@
         <h1>Cotizaciones</h1>
       </div>
       <div class="topbar__actions">
+        <a class="ghost-button" href="/admin">Cotizaciones</a>
+        <a class="ghost-button" href="/admin/stats">Estadisticas</a>
+        <a class="ghost-button" href="/admin/settings">Opciones</a>
         <button class="ghost-button" type="button" data-export>Exportar Excel</button>
         <button class="ghost-button" type="button" data-refresh>Actualizar</button>
+        <form method="post" action="/admin/logout">
+          <button class="ghost-button" type="submit">Salir</button>
+        </form>
       </div>
     </header>
 

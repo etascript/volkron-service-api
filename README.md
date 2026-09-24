@@ -4,6 +4,7 @@ Servicio dockerizable para:
 
 - Recibir solicitudes del formulario de cotizacion.
 - Guardar cada solicitud en almacenamiento local JSONL cifrado.
+- Guardar la operacion principal en SQLite.
 - Exponer un panel operativo en `/admin`.
 - Entregar disponibilidad mensual para el calendario del sitio.
 - Bloquear horarios ya tomados segun registros locales y estados del panel.
@@ -15,14 +16,35 @@ GET /health
 GET /api/availability?month=2026-09
 GET /api/holidays?year=2026
 POST /api/quote
+POST /api/forms/:slug/submissions
 GET /admin
+GET /admin/stats
+GET /admin/settings
 GET /admin/api/quotes
 POST /admin/api/quotes/:id/status
+GET /admin/api/settings
+POST /admin/api/settings
 ```
 
 ## Almacenamiento local
 
-Cada `POST /api/quote` valido escribe una linea cifrada en formato JSONL.
+SQLite es la base operativa principal:
+
+```txt
+./data/app.db
+```
+
+Configura:
+
+```env
+DATABASE_PATH=./data/app.db
+FORMS_BUILDER_ENABLED=false
+```
+
+`FORMS_BUILDER_ENABLED` controla la capacidad futura de crear formularios desde UI/API.
+Para Volkron debe quedar en `false`.
+
+Ademas, cada `POST /api/quote` valido escribe una linea cifrada de auditoria en formato JSONL.
 Por defecto se guarda en:
 
 ```txt
@@ -65,17 +87,27 @@ docker compose exec volkron-servicios-api npm run encrypt:data
 
 El script deja una copia `.bak-TIMESTAMP` antes de reescribir cada archivo cifrado.
 
+Para migrar respaldos JSONL existentes a SQLite:
+
+```bash
+docker compose exec volkron-servicios-api npm run migrate:sqlite
+```
+
 ## Panel admin
 
 El panel interno queda disponible en:
 
 ```http
 GET /admin
+GET /admin/stats
+GET /admin/settings
 ```
 
 Permite listar, buscar y filtrar las cotizaciones guardadas en `data/quotes/*.jsonl`.
 Tambien permite cambiar el estado operativo de una cotizacion.
 La vista principal usa tabla responsive, permite ordenar por fecha y exportar a CSV compatible con Excel la vista filtrada actual.
+En `/admin/settings` se configuran los estados del formulario y el estado por defecto.
+Para Volkron, el default inicial es `Pendiente`.
 
 Los cambios de estado no reescriben la cotizacion original; se agregan como eventos cifrados append-only.
 El detalle de cada solicitud muestra la cronologia completa de estados.
@@ -93,10 +125,17 @@ El proyecto incluye Basic Auth para todo `/admin*`. Configura credenciales en `.
 ```env
 ADMIN_USER=volkron
 ADMIN_PASSWORD=usa-una-clave-larga
+ADMIN_SESSION_SECRET=otra-clave-larga
 ```
 
 Si esas variables no existen, `/admin*` responde `503 Admin no configurado`.
 Las rutas publicas de la tienda (`/api/quote`, `/api/availability`, `/api/holidays`) no usan esta autenticacion.
+
+Genera un secreto de sesion:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
 
 ## Google Sheets opcional
 

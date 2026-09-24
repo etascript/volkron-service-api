@@ -6,17 +6,6 @@ const state = {
   sortDate: 'desc',
 };
 
-const statusLabels = {
-  received: 'Recibida',
-  pending: 'Pendiente',
-  contacted: 'Contactado',
-  quoted: 'Cotizada',
-  scheduled: 'Agendada',
-  won: 'Ganada',
-  lost: 'Perdida',
-  cancelled: 'Cancelada',
-};
-
 const els = {
   quotes: document.querySelector('[data-quotes]'),
   total: document.querySelector('[data-total]'),
@@ -26,6 +15,11 @@ const els = {
   refresh: document.querySelector('[data-refresh]'),
   export: document.querySelector('[data-export]'),
 };
+
+function statusLabel(value) {
+  const item = (state.filters.statuses || []).find((status) => status.value === value);
+  return item ? item.label : value;
+}
 
 function escapeHtml(value) {
   return String(value || '')
@@ -88,9 +82,9 @@ function syncFilterOptions(filters) {
   if (status) {
     status.innerHTML = ['<option value="">Todos</option>']
       .concat(
-        (filters.statuses || []).map((value) => {
-          const selected = value === current.status ? ' selected' : '';
-          return '<option value="' + escapeHtml(value) + '"' + selected + '>' + escapeHtml(statusLabels[value] || value) + '</option>';
+        (filters.statuses || []).map((statusItem) => {
+          const selected = statusItem.value === current.status ? ' selected' : '';
+          return '<option value="' + escapeHtml(statusItem.value) + '"' + selected + '>' + escapeHtml(statusItem.label) + '</option>';
         }),
       )
       .join('');
@@ -106,7 +100,7 @@ function quoteRow(item) {
   return `
     <tr class="quote-row" data-open="${escapeHtml(item.id)}" tabindex="0">
       <td data-label="Fecha">${escapeHtml(formatDate(item.created_at))}</td>
-      <td data-label="Estado"><span class="status-pill" data-status="${escapeHtml(item.status)}">${escapeHtml(statusLabels[item.status] || item.status)}</span></td>
+      <td data-label="Estado"><span class="status-pill" data-status="${escapeHtml(item.status)}">${escapeHtml(statusLabel(item.status))}</span></td>
       <td data-label="Nombre"><strong>${escapeHtml(quote.nombre || '-')}</strong><span>${escapeHtml(quote.rut || '-')}</span></td>
       <td data-label="Contacto"><strong>${escapeHtml(quote.telefono || '-')}</strong><span>${escapeHtml(quote.email || '-')}</span></td>
       <td data-label="Ubicacion"><strong>${escapeHtml(quote.region || '-')}</strong><span>${escapeHtml(quote.comuna || '-')}</span></td>
@@ -158,9 +152,9 @@ function detailField(label, value) {
 }
 
 function statusOptions(current) {
-  return (state.filters.statuses || []).map((status) => {
-    const selected = status === current ? ' selected' : '';
-    return '<option value="' + escapeHtml(status) + '"' + selected + '>' + escapeHtml(statusLabels[status] || status) + '</option>';
+  return (state.filters.statuses || []).map((statusItem) => {
+    const selected = statusItem.value === current ? ' selected' : '';
+    return '<option value="' + escapeHtml(statusItem.value) + '"' + selected + '>' + escapeHtml(statusItem.label) + '</option>';
   }).join('');
 }
 
@@ -173,7 +167,7 @@ function timeline(item) {
       ${history.map((event) => `
         <li>
           <span class="timeline__date">${escapeHtml(formatDate(event.changed_at))}</span>
-          <strong>${escapeHtml(statusLabels[event.status] || event.status)}</strong>
+          <strong>${escapeHtml(statusLabel(event.status))}</strong>
           ${event.note ? '<p>' + escapeHtml(event.note) + '</p>' : ''}
         </li>
       `).join('')}
@@ -184,7 +178,7 @@ function timeline(item) {
 function renderDetail(item) {
   const quote = item.quote || {};
   els.detail.innerHTML = `
-    <span class="status-pill" data-status="${escapeHtml(item.status)}">${escapeHtml(statusLabels[item.status] || item.status)}</span>
+    <span class="status-pill" data-status="${escapeHtml(item.status)}">${escapeHtml(statusLabel(item.status))}</span>
     <h2 class="detail-title">${escapeHtml(quote.nombre)}</h2>
     <p>${escapeHtml(formatDate(item.created_at))}</p>
 
@@ -340,7 +334,7 @@ function exportCurrentView() {
     return [
       item.id,
       item.created_at,
-      statusLabels[item.status] || item.status,
+      statusLabel(item.status),
       quote.nombre,
       quote.rut,
       quote.telefono,

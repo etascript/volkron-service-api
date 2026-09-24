@@ -35,9 +35,12 @@ export const config = {
   holidaysApiUrl: process.env.HOLIDAYS_API_URL || 'https://api.roison.cl/feriados.json',
   holidaysCacheTtlMs: Number(process.env.HOLIDAYS_CACHE_TTL_MS || 12 * 60 * 60 * 1000),
   lookaheadMonths: Number(process.env.LOOKAHEAD_MONTHS || 6),
+  databasePath: process.env.DATABASE_PATH || './data/app.db',
   backupDir: process.env.BACKUP_DIR || './data/quotes',
   statusEventsFile: process.env.STATUS_EVENTS_FILE || './data/status-events.jsonl',
   backupEncryptionKey: required('BACKUP_ENCRYPTION_KEY'),
   adminUser: process.env.ADMIN_USER || '',
   adminPassword: process.env.ADMIN_PASSWORD || '',
+  adminSessionSecret: required('ADMIN_SESSION_SECRET'),
+  formsBuilderEnabled: process.env.FORMS_BUILDER_ENABLED === 'true',
 };

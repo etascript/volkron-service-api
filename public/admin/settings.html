@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Volkron - Opciones</title>
+    <link rel="stylesheet" href="/admin/assets/admin.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <span class="eyebrow">Volkron Servicios</span>
+        <h1>Opciones</h1>
+      </div>
+      <div class="topbar__actions">
+        <a class="ghost-button" href="/admin">Cotizaciones</a>
+        <a class="ghost-button" href="/admin/stats">Estadisticas</a>
+        <a class="ghost-button" href="/admin/settings">Opciones</a>
+        <form method="post" action="/admin/logout">
+          <button class="ghost-button" type="submit">Salir</button>
+        </form>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="settings-panel">
+        <div class="settings-panel__head">
+          <div>
+            <span class="eyebrow">Formulario cotizacion</span>
+            <h2>Estados del registro</h2>
+          </div>
+          <button class="ghost-button settings-add" type="button" data-add-status>Agregar estado</button>
+        </div>
+
+        <form data-settings-form>
+          <div class="settings-statuses" data-statuses></div>
+          <button class="primary-button" type="submit">Guardar opciones</button>
+        </form>
+      </section>
+    </main>
+
+    <script src="/admin/assets/settings.js" defer></script>
+  </body>
+</html>

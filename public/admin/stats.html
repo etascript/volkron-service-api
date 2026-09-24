@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Volkron - Estadisticas</title>
+    <link rel="stylesheet" href="/admin/assets/admin.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <span class="eyebrow">Volkron Servicios</span>
+        <h1>Estadisticas</h1>
+      </div>
+      <div class="topbar__actions">
+        <a class="ghost-button" href="/admin">Cotizaciones</a>
+        <a class="ghost-button" href="/admin/stats">Estadisticas</a>
+        <a class="ghost-button" href="/admin/settings">Opciones</a>
+        <button class="ghost-button" type="button" data-refresh-stats>Actualizar</button>
+        <form method="post" action="/admin/logout">
+          <button class="ghost-button" type="submit">Salir</button>
+        </form>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="stats-grid" data-kpis>
+        <div class="empty">Cargando estadisticas...</div>
+      </section>
+
+      <section class="stats-layout">
+        <article class="stats-panel">
+          <h2>Solicitudes por estado</h2>
+          <div data-chart="status"></div>
+        </article>
+        <article class="stats-panel">
+          <h2>Servicios mas solicitados</h2>
+          <div data-chart="service"></div>
+        </article>
+        <article class="stats-panel">
+          <h2>Regiones</h2>
+          <div data-chart="region"></div>
+        </article>
+        <article class="stats-panel">
+          <h2>Ultimos 14 dias</h2>
+          <div data-chart="daily"></div>
+        </article>
+        <article class="stats-panel stats-panel--wide">
+          <h2>Ultimos 6 meses</h2>
+          <div data-chart="monthly"></div>
+        </article>
+      </section>
+    </main>
+
+    <script src="/admin/assets/stats.js" defer></script>
+  </body>
+</html>

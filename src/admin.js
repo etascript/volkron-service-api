@@ -1,173 +1,129 @@
-import { mkdir, readFile, appendFile } from 'node:fs/promises';
-import path from 'node:path';
 import { z } from 'zod';
-import { config } from './config.js';
-import { decryptRecord, encryptRecord, readQuoteBackups } from './backups.js';
-
-export const QUOTE_STATUSES = [
-  'received',
-  'pending',
-  'contacted',
-  'quoted',
-  'scheduled',
-  'won',
-  'lost',
-  'cancelled',
-];
+import {
+  appendSubmissionStatus,
+  getFormStatuses,
+  listSubmissions,
+  updateFormStatuses,
+} from './forms.js';
 
 const statusSchema = z.object({
-  status: z.enum(QUOTE_STATUSES),
+  status: z.string().trim().min(1).max(80),
   note: z.string().trim().max(500).optional().default(''),
 });
 
-function normalize(value) {
-  return String(value || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-}
+const settingsSchema = z.object({
+  statuses: z.array(z.object({
+    value: z.string().trim().min(1).max(80),
+    label: z.string().trim().min(1).max(120),
+    sortOrder: z.number().optional(),
+  })).min(1),
+  defaultStatus: z.string().trim().min(1).max(80),
+});
 
-function quoteSearchText(item) {
-  const quote = item.quote || {};
-  return normalize([
-    item.id,
-    item.created_at,
-    item.status,
-    quote.nombre,
-    quote.rut,
-    quote.telefono,
-    quote.email,
-    quote.region,
-    quote.comuna,
-    quote.tipo_servicio,
-    quote.servicio_origen,
-    quote.fecha_visita,
-    quote.horario,
-    quote.detalle,
-  ].join(' '));
-}
-
-async function readJsonl(filePath) {
-  try {
-    const raw = await readFile(filePath, 'utf8');
-    return raw
-      .split(/\r?\n/)
-      .filter(Boolean)
-      .map((line) => {
-        try {
-        return decryptRecord(line);
-        } catch {
-          return null;
-        }
-      })
-      .filter(Boolean);
-  } catch (error) {
-    if (error.code === 'ENOENT') return [];
-    throw error;
-  }
-}
-
-async function readStatusEventCollections() {
-  const events = await readJsonl(config.statusEventsFile);
-  const latestById = new Map();
-  const eventsById = new Map();
-
-  events.forEach((event) => {
-    if (!event.quote_id || !event.status) return;
-    if (!eventsById.has(event.quote_id)) eventsById.set(event.quote_id, []);
-    eventsById.get(event.quote_id).push(event);
-    latestById.set(event.quote_id, event);
-  });
-
-  eventsById.forEach((items) => {
-    items.sort((a, b) => String(a.changed_at || '').localeCompare(String(b.changed_at || '')));
-  });
-
-  return { latestById, eventsById };
-}
-
-function applyFilters(items, query) {
-  const q = normalize(query.q);
-  const status = normalize(query.status);
-  const region = normalize(query.region);
-  const comuna = normalize(query.comuna);
-  const service = normalize(query.service);
-  const from = String(query.from || '');
-  const to = String(query.to || '');
-
-  return items.filter((item) => {
-    const quote = item.quote || {};
-    if (q && !quoteSearchText(item).includes(q)) return false;
-    if (status && normalize(item.status) !== status) return false;
-    if (region && !normalize(quote.region).includes(region)) return false;
-    if (comuna && !normalize(quote.comuna).includes(comuna)) return false;
-    if (service && !normalize(quote.tipo_servicio).includes(service)) return false;
-    if (from && String(item.created_at || '').slice(0, 10) < from) return false;
-    if (to && String(item.created_at || '').slice(0, 10) > to) return false;
-    return true;
-  });
-}
-
-function uniqueOptions(items, field) {
-  const values = new Set();
+function countBy(items, getter) {
+  const counts = new Map();
   items.forEach((item) => {
-    const value = field === 'status' ? item.status : item.quote?.[field];
-    if (value) values.add(value);
+    const key = getter(item) || 'Sin dato';
+    counts.set(key, (counts.get(key) || 0) + 1);
   });
-  return [...values].sort((a, b) => a.localeCompare(b, 'es'));
+  return [...counts.entries()]
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label, 'es'));
+}
+
+function dateKey(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function monthKey(date) {
+  return date.toISOString().slice(0, 7);
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function startOfMonth(date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function addMonths(date, months) {
+  return new Date(date.getFullYear(), date.getMonth() + months, 1);
 }
 
 export async function listQuotes(query = {}) {
-  const { latestById, eventsById } = await readStatusEventCollections();
-  const records = await readQuoteBackups();
+  return listSubmissions('cotizacion', query);
+}
 
-  const normalizedRecords = records
-    .filter((record) => record.id && record.quote)
-    .map((record) => {
-      const statusEvent = latestById.get(record.id);
-      const history = [
-        {
-          status: record.status || 'received',
-          note: '',
-          changed_at: record.created_at,
-          type: 'created',
-        },
-        ...(eventsById.get(record.id) || []).map((event) => ({
-          status: event.status,
-          note: event.note || '',
-          changed_at: event.changed_at,
-          type: 'status',
-        })),
-      ];
+export async function getStats() {
+  const quotes = await listQuotes({ limit: 1000 });
+  const items = quotes.items;
+  const statusLabels = new Map((quotes.filters.statuses || []).map((status) => [status.value, status.label]));
+  const now = new Date();
+  const today = dateKey(now);
+  const currentMonth = monthKey(now);
+  const inactiveStatuses = new Set(['lost', 'cancelled', 'canceled', 'rechazada', 'reprobado']);
+  const won = items.filter((item) => item.status === 'won').length;
+  const lost = items.filter((item) => item.status === 'lost').length;
+  const decided = won + lost;
+  const firstContactDeltas = [];
 
-      return {
-        id: record.id,
-        created_at: record.created_at,
-        status: statusEvent?.status || record.status || 'received',
-        status_note: statusEvent?.note || '',
-        status_changed_at: statusEvent?.changed_at || '',
-        status_history: history,
-        quote: record.quote,
-        meta: record.meta || {},
-      };
-    })
-    .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+  items.forEach((item) => {
+    const contactEvent = (item.status_history || []).find((event) =>
+      ['contacted', 'quoted', 'scheduled', 'won', 'lost'].includes(event.status),
+    );
+    if (!contactEvent || !item.created_at || !contactEvent.changed_at) return;
+    const created = new Date(item.created_at);
+    const contacted = new Date(contactEvent.changed_at);
+    if (Number.isNaN(created.getTime()) || Number.isNaN(contacted.getTime())) return;
+    const deltaHours = (contacted.getTime() - created.getTime()) / 36e5;
+    if (deltaHours >= 0) firstContactDeltas.push(deltaHours);
+  });
 
-  const filtered = applyFilters(normalizedRecords, query);
-  const limit = Math.min(Math.max(Number(query.limit || 200), 1), 1000);
-  const offset = Math.max(Number(query.offset || 0), 0);
+  const daily = [];
+  for (let i = 13; i >= 0; i -= 1) {
+    const day = dateKey(addDays(now, -i));
+    daily.push({
+      label: day,
+      value: items.filter((item) => String(item.created_at || '').startsWith(day)).length,
+    });
+  }
+
+  const monthly = [];
+  const monthStart = startOfMonth(now);
+  for (let i = 5; i >= 0; i -= 1) {
+    const month = monthKey(addMonths(monthStart, -i));
+    monthly.push({
+      label: month,
+      value: items.filter((item) => String(item.created_at || '').startsWith(month)).length,
+    });
+  }
 
   return {
-    total: filtered.length,
-    limit,
-    offset,
-    items: filtered.slice(offset, offset + limit),
-    filters: {
-      statuses: QUOTE_STATUSES,
-      regions: uniqueOptions(normalizedRecords, 'region'),
-      comunas: uniqueOptions(normalizedRecords, 'comuna'),
-      services: uniqueOptions(normalizedRecords, 'tipo_servicio'),
+    totals: {
+      all: items.length,
+      currentMonth: items.filter((item) => String(item.created_at || '').startsWith(currentMonth)).length,
+      active: items.filter((item) => !inactiveStatuses.has(item.status)).length,
+      upcomingVisits: items.filter((item) => {
+        const visitDate = item.quote?.fecha_visita || '';
+        return visitDate >= today && !inactiveStatuses.has(item.status);
+      }).length,
+      won,
+      lost,
+      conversionRate: decided ? Math.round((won / decided) * 100) : 0,
+      avgFirstContactHours: firstContactDeltas.length
+        ? Math.round(firstContactDeltas.reduce((sum, value) => sum + value, 0) / firstContactDeltas.length)
+        : null,
     },
+    distributions: {
+      status: countBy(items, (item) => statusLabels.get(item.status) || item.status),
+      service: countBy(items, (item) => item.quote?.tipo_servicio).slice(0, 8),
+      region: countBy(items, (item) => item.quote?.region).slice(0, 8),
+      comuna: countBy(items, (item) => item.quote?.comuna).slice(0, 8),
+    },
+    series: { daily, monthly },
   };
 }
 
@@ -182,7 +138,7 @@ export async function getReservedSlotsFromAdmin(month) {
 
     if (!fechaVisita.startsWith(month)) return;
     if (!horario) return;
-    if (['cancelled', 'canceled', 'rechazada', 'cancelada', 'lost'].includes(status)) return;
+    if (['cancelled', 'canceled', 'rechazada', 'cancelada', 'lost', 'reprobado'].includes(status)) return;
 
     if (!reservedByDate.has(fechaVisita)) reservedByDate.set(fechaVisita, new Set());
     reservedByDate.get(fechaVisita).add(horario);
@@ -205,29 +161,38 @@ export async function appendStatusEvent(quoteId, payload) {
     };
   }
 
-  const quotes = await listQuotes({ limit: 1000 });
-  const exists = quotes.items.some((item) => item.id === quoteId);
-  if (!exists) {
+  return appendSubmissionStatus(quoteId, parsed.data);
+}
+
+export async function getSettings() {
+  const statuses = getFormStatuses('cotizacion');
+  return {
+    formsBuilderEnabled: false,
+    statuses,
+    defaultStatus: statuses.find((status) => status.isDefault)?.value || statuses[0]?.value || '',
+  };
+}
+
+export async function updateSettings(payload) {
+  const parsed = settingsSchema.safeParse(payload);
+  if (!parsed.success) {
     return {
       ok: false,
-      status: 404,
-      body: { ok: false, message: 'Cotizacion no encontrada' },
+      status: 400,
+      body: {
+        ok: false,
+        message: 'Configuracion invalida',
+        issues: parsed.error.issues,
+      },
     };
   }
 
-  const event = {
-    quote_id: quoteId,
-    status: parsed.data.status,
-    note: parsed.data.note,
-    changed_at: new Date().toISOString(),
-  };
-
-  await mkdir(path.dirname(config.statusEventsFile), { recursive: true });
-  await appendFile(config.statusEventsFile, `${JSON.stringify(encryptRecord(event))}\n`, 'utf8');
-
   return {
     ok: true,
-    status: 201,
-    body: { ok: true, event },
+    status: 200,
+    body: {
+      ok: true,
+      statuses: updateFormStatuses('cotizacion', parsed.data.statuses, parsed.data.defaultStatus),
+    },
   };
 }

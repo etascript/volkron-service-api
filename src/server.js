@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import pino from 'pino';
-import { randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
@@ -17,7 +17,8 @@ import { appendQuote } from './sheets.js';
 import { quoteSchema } from './validation.js';
 import { getHolidays, getHolidaySet } from './holidays.js';
 import { appendQuoteBackup } from './backups.js';
-import { appendStatusEvent, getReservedSlotsFromAdmin, listQuotes } from './admin.js';
+import { appendStatusEvent, getReservedSlotsFromAdmin, getSettings, getStats, listQuotes, updateSettings } from './admin.js';
+import { createSubmission } from './forms.js';
 
 const logger = pino({ level: config.nodeEnv === 'production' ? 'info' : 'debug' });
 const app = express();
@@ -31,28 +32,67 @@ function safeCompare(a, b) {
   return timingSafeEqual(left, right);
 }
 
-function adminAuth(req, res, next) {
+function parseCookies(req) {
+  return Object.fromEntries(
+    String(req.get('cookie') || '')
+      .split(';')
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => {
+        const index = item.indexOf('=');
+        return index >= 0 ? [item.slice(0, index), decodeURIComponent(item.slice(index + 1))] : [item, ''];
+      }),
+  );
+}
+
+function signSession(payload) {
+  return createHmac('sha256', config.adminSessionSecret).update(payload).digest('base64url');
+}
+
+function createSessionToken(user) {
+  const payload = Buffer.from(JSON.stringify({
+    user,
+    exp: Date.now() + 12 * 60 * 60 * 1000,
+  })).toString('base64url');
+  return `${payload}.${signSession(payload)}`;
+}
+
+function verifySessionToken(token) {
+  const [payload, signature] = String(token || '').split('.');
+  if (!payload || !signature) return false;
+  if (!safeCompare(signature, signSession(payload))) return false;
+
+  try {
+    const session = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return session.user === config.adminUser && Number(session.exp) > Date.now();
+  } catch {
+    return false;
+  }
+}
+
+function sessionCookie(value) {
+  const secure = config.nodeEnv === 'production' ? '; Secure' : '';
+  return `volkron_admin=${encodeURIComponent(value)}; Path=/admin; HttpOnly; SameSite=Lax; Max-Age=43200${secure}`;
+}
+
+function clearSessionCookie() {
+  const secure = config.nodeEnv === 'production' ? '; Secure' : '';
+  return `volkron_admin=; Path=/admin; HttpOnly; SameSite=Lax; Max-Age=0${secure}`;
+}
+
+function wantsJson(req) {
+  return req.path.startsWith('/admin/api') || req.get('accept')?.includes('application/json');
+}
+
+function adminSessionAuth(req, res, next) {
   if (!config.adminUser || !config.adminPassword) {
     logger.error('admin auth is not configured');
     return res.status(503).send('Admin no configurado');
   }
 
-  const header = req.get('authorization') || '';
-  const [scheme, credentials] = header.split(' ');
-
-  if (scheme !== 'Basic' || !credentials) {
-    res.set('WWW-Authenticate', 'Basic realm="Volkron Admin", charset="UTF-8"');
-    return res.status(401).send('Autenticacion requerida');
-  }
-
-  const decoded = Buffer.from(credentials, 'base64').toString('utf8');
-  const separator = decoded.indexOf(':');
-  const user = separator >= 0 ? decoded.slice(0, separator) : '';
-  const password = separator >= 0 ? decoded.slice(separator + 1) : '';
-
-  if (!safeCompare(user, config.adminUser) || !safeCompare(password, config.adminPassword)) {
-    res.set('WWW-Authenticate', 'Basic realm="Volkron Admin", charset="UTF-8"');
-    return res.status(401).send('Credenciales invalidas');
+  if (!verifySessionToken(parseCookies(req).volkron_admin)) {
+    if (wantsJson(req)) return res.status(401).json({ ok: false, message: 'Sesion requerida' });
+    return res.redirect('/admin/login');
   }
 
   return next();
@@ -67,7 +107,7 @@ app.use(
   }),
 );
 app.use(express.json({ limit: '64kb' }));
-app.use('/admin', adminAuth);
+app.use(express.urlencoded({ extended: false }));
 app.use('/admin/assets', express.static(path.join(publicDir, 'admin'), { index: false, maxAge: '1h' }));
 
 app.get('/', (_req, res) => {
@@ -112,15 +152,81 @@ app.get('/api/holidays', async (req, res, next) => {
   }
 });
 
+app.get('/admin/login', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(publicDir, 'admin', 'login.html'));
+});
+
+app.post('/admin/login', (req, res) => {
+  const user = String(req.body.user || '');
+  const password = String(req.body.password || '');
+
+  if (!config.adminUser || !config.adminPassword) return res.status(503).send('Admin no configurado');
+
+  if (!safeCompare(user, config.adminUser) || !safeCompare(password, config.adminPassword)) {
+    return res.redirect('/admin/login?error=1');
+  }
+
+  res.set('Set-Cookie', sessionCookie(createSessionToken(user)));
+  return res.redirect('/admin');
+});
+
+app.use('/admin', (req, res, next) => {
+  if (req.path === '/login') return next();
+  return adminSessionAuth(req, res, next);
+});
+
 app.get(['/admin', '/admin/'], (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.sendFile(path.join(publicDir, 'admin', 'index.html'));
+});
+
+app.get('/admin/stats', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(publicDir, 'admin', 'stats.html'));
+});
+
+app.get('/admin/settings', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(publicDir, 'admin', 'settings.html'));
+});
+
+app.post('/admin/logout', (_req, res) => {
+  res.set('Set-Cookie', clearSessionCookie());
+  res.redirect('/admin/login');
 });
 
 app.get('/admin/api/quotes', async (req, res, next) => {
   try {
     res.set('Cache-Control', 'no-store');
     res.json(await listQuotes(req.query));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/admin/api/stats', async (_req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.json(await getStats());
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/admin/api/settings', async (_req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.json(await getSettings());
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/admin/api/settings', async (req, res, next) => {
+  try {
+    const result = await updateSettings(req.body);
+    res.status(result.status).json(result.body);
   } catch (error) {
     next(error);
   }
@@ -174,6 +280,7 @@ app.post('/api/quote', async (req, res, next) => {
       userAgent: req.get('user-agent') || '',
     };
 
+    createSubmission('cotizacion', quote, meta);
     await appendQuoteBackup(quote, meta);
     try {
       await appendQuote(quote, meta);
@@ -182,6 +289,22 @@ app.post('/api/quote', async (req, res, next) => {
     }
 
     res.status(201).json({ ok: true, id: meta.requestId });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/forms/:slug/submissions', async (req, res, next) => {
+  try {
+    if (req.body?.website) return res.status(204).end();
+    const meta = {
+      requestId: randomUUID(),
+      createdAt: new Date().toISOString(),
+      source: req.get('origin') || req.get('referer') || '',
+      userAgent: req.get('user-agent') || '',
+    };
+    const id = createSubmission(req.params.slug, req.body || {}, meta);
+    res.status(201).json({ ok: true, id });
   } catch (error) {
     next(error);
   }
