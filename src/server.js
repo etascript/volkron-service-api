@@ -17,7 +17,16 @@ import { appendQuote } from './sheets.js';
 import { quoteSchema } from './validation.js';
 import { getHolidays, getHolidaySet } from './holidays.js';
 import { appendQuoteBackup } from './backups.js';
-import { appendStatusEvent, getReservedSlotsFromAdmin, getSettings, getStats, listQuotes, updateSettings } from './admin.js';
+import {
+  appendStatusEvent,
+  createManualQuote,
+  deleteQuote,
+  getReservedSlotsFromAdmin,
+  getSettings,
+  getStats,
+  listQuotes,
+  updateSettings,
+} from './admin.js';
 import { createSubmission } from './forms.js';
 
 const logger = pino({ level: config.nodeEnv === 'production' ? 'info' : 'debug' });
@@ -108,7 +117,16 @@ app.use(
 );
 app.use(express.json({ limit: '64kb' }));
 app.use(express.urlencoded({ extended: false }));
-app.use('/admin/assets', express.static(path.join(publicDir, 'admin'), { index: false, maxAge: '1h' }));
+app.use(
+  '/admin/assets',
+  express.static(path.join(publicDir, 'admin'), {
+    index: false,
+    maxAge: 0,
+    setHeaders(res) {
+      res.set('Cache-Control', 'no-store');
+    },
+  }),
+);
 
 app.get('/', (_req, res) => {
   res.json({
@@ -186,6 +204,11 @@ app.get('/admin/stats', (_req, res) => {
   res.sendFile(path.join(publicDir, 'admin', 'stats.html'));
 });
 
+app.get('/admin/new', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(publicDir, 'admin', 'quote-form.html'));
+});
+
 app.get('/admin/settings', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.sendFile(path.join(publicDir, 'admin', 'settings.html'));
@@ -200,6 +223,15 @@ app.get('/admin/api/quotes', async (req, res, next) => {
   try {
     res.set('Cache-Control', 'no-store');
     res.json(await listQuotes(req.query));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/admin/api/quotes', async (req, res, next) => {
+  try {
+    const result = await createManualQuote(req.body);
+    res.status(result.status).json(result.body);
   } catch (error) {
     next(error);
   }
@@ -235,6 +267,15 @@ app.post('/admin/api/settings', async (req, res, next) => {
 app.post('/admin/api/quotes/:id/status', async (req, res, next) => {
   try {
     const result = await appendStatusEvent(req.params.id, req.body);
+    res.status(result.status).json(result.body);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/admin/api/quotes/:id', async (req, res, next) => {
+  try {
+    const result = await deleteQuote(req.params.id, req.body || {});
     res.status(result.status).json(result.body);
   } catch (error) {
     next(error);

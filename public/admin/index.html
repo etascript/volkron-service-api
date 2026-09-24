@@ -7,75 +7,91 @@
     <link rel="stylesheet" href="/admin/assets/admin.css">
   </head>
   <body>
-    <header class="topbar">
-      <div>
-        <span class="eyebrow">Volkron Servicios</span>
-        <h1>Cotizaciones</h1>
-      </div>
-      <div class="topbar__actions">
-        <a class="ghost-button" href="/admin">Cotizaciones</a>
-        <a class="ghost-button" href="/admin/stats">Estadisticas</a>
-        <a class="ghost-button" href="/admin/settings">Opciones</a>
-        <button class="ghost-button" type="button" data-export>Exportar Excel</button>
-        <button class="ghost-button" type="button" data-refresh>Actualizar</button>
-        <form method="post" action="/admin/logout">
+    <div class="admin-layout">
+      <div class="sidebar-backdrop" data-sidebar-close></div>
+      <aside class="sidebar" data-sidebar>
+        <div class="sidebar__brand">
+          <span class="eyebrow">Volkron Servicios</span>
+          <strong>Panel operativo</strong>
+        </div>
+        <nav class="sidebar__nav" aria-label="Navegacion admin">
+          <a class="is-active" href="/admin">Cotizaciones</a>
+          <a href="/admin/new">Nueva solicitud</a>
+          <a href="/admin/stats">Estadisticas</a>
+          <a href="/admin/settings">Opciones</a>
+        </nav>
+        <form class="sidebar__logout" method="post" action="/admin/logout">
           <button class="ghost-button" type="submit">Salir</button>
         </form>
+      </aside>
+
+      <div class="admin-main">
+        <header class="topbar">
+          <button class="menu-button" type="button" data-sidebar-toggle aria-label="Abrir menu">Menu</button>
+          <div>
+            <span class="eyebrow">Volkron Servicios</span>
+            <h1>Cotizaciones</h1>
+          </div>
+          <div class="topbar__actions">
+            <button class="ghost-button" type="button" data-export>Exportar Excel</button>
+            <button class="ghost-button" type="button" data-refresh>Actualizar</button>
+          </div>
+        </header>
+
+        <main class="shell">
+          <section class="filters" aria-label="Filtros">
+            <label class="search">
+              <span>Buscar</span>
+              <input type="search" data-filter="q" placeholder="Nombre, RUT, email, telefono...">
+            </label>
+
+            <div class="filter-grid">
+              <label>
+                <span>Estado</span>
+                <select data-filter="status">
+                  <option value="">Todos</option>
+                </select>
+              </label>
+              <label>
+                <span>Region</span>
+                <select data-filter="region">
+                  <option value="">Todas</option>
+                </select>
+              </label>
+              <label>
+                <span>Comuna</span>
+                <select data-filter="comuna">
+                  <option value="">Todas</option>
+                </select>
+              </label>
+              <label>
+                <span>Servicio</span>
+                <select data-filter="service">
+                  <option value="">Todos</option>
+                </select>
+              </label>
+              <label>
+                <span>Desde</span>
+                <input type="date" data-filter="from">
+              </label>
+              <label>
+                <span>Hasta</span>
+                <input type="date" data-filter="to">
+              </label>
+            </div>
+          </section>
+
+          <section class="summary" aria-live="polite">
+            <strong data-total>0</strong>
+            <span>solicitudes encontradas</span>
+          </section>
+
+          <section class="quotes" data-quotes>
+            <div class="empty">Cargando solicitudes...</div>
+          </section>
+        </main>
       </div>
-    </header>
-
-    <main class="shell">
-      <section class="filters" aria-label="Filtros">
-        <label class="search">
-          <span>Buscar</span>
-          <input type="search" data-filter="q" placeholder="Nombre, RUT, email, telefono...">
-        </label>
-
-        <div class="filter-grid">
-          <label>
-            <span>Estado</span>
-            <select data-filter="status">
-              <option value="">Todos</option>
-            </select>
-          </label>
-          <label>
-            <span>Region</span>
-            <select data-filter="region">
-              <option value="">Todas</option>
-            </select>
-          </label>
-          <label>
-            <span>Comuna</span>
-            <select data-filter="comuna">
-              <option value="">Todas</option>
-            </select>
-          </label>
-          <label>
-            <span>Servicio</span>
-            <select data-filter="service">
-              <option value="">Todos</option>
-            </select>
-          </label>
-          <label>
-            <span>Desde</span>
-            <input type="date" data-filter="from">
-          </label>
-          <label>
-            <span>Hasta</span>
-            <input type="date" data-filter="to">
-          </label>
-        </div>
-      </section>
-
-      <section class="summary" aria-live="polite">
-        <strong data-total>0</strong>
-        <span>solicitudes encontradas</span>
-      </section>
-
-      <section class="quotes" data-quotes>
-        <div class="empty">Cargando solicitudes...</div>
-      </section>
-    </main>
+    </div>
 
     <div class="drawer" data-drawer aria-hidden="true">
       <div class="drawer__backdrop" data-close-drawer></div>
@@ -85,6 +101,7 @@
       </aside>
     </div>
 
+    <script src="/admin/assets/layout.js" defer></script>
     <script src="/admin/assets/admin.js" defer></script>
   </body>
 </html>

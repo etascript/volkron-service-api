@@ -75,6 +75,8 @@ function rowsToSubmission(rowGroup) {
   return {
     id: first.id,
     created_at: first.created_at,
+    deleted_at: first.deleted_at || '',
+    deleted_note: first.deleted_note || '',
     status: first.status,
     status_note: lastEvent?.note || '',
     status_changed_at: lastEvent?.changed_at || '',
@@ -151,6 +153,7 @@ function uniqueOptions(items, field) {
 
 export function listSubmissions(formSlug, query = {}) {
   const database = getDb();
+  const includeDeleted = String(query.includeDeleted || '') === 'true';
   const rows = database.prepare(`
     SELECT
       s.id,
@@ -158,6 +161,8 @@ export function listSubmissions(formSlug, query = {}) {
       s.source,
       s.user_agent,
       s.created_at,
+      s.deleted_at,
+      s.deleted_note,
       sv.field_name,
       sv.value,
       (
@@ -177,8 +182,9 @@ export function listSubmissions(formSlug, query = {}) {
     JOIN forms f ON f.id = s.form_id
     LEFT JOIN submission_values sv ON sv.submission_id = s.id
     WHERE f.slug = ?
+      AND (? = 1 OR s.deleted_at IS NULL)
     ORDER BY s.created_at DESC
-  `).all(formSlug);
+  `).all(formSlug, includeDeleted ? 1 : 0);
 
   const groups = new Map();
   rows.forEach((row) => {
@@ -212,6 +218,7 @@ export function appendSubmissionStatus(submissionId, payload) {
     FROM submissions s
     JOIN forms f ON f.id = s.form_id
     WHERE s.id = ?
+      AND s.deleted_at IS NULL
   `).get(submissionId);
   if (!exists) {
     return { ok: false, status: 404, body: { ok: false, message: 'Cotizacion no encontrada' } };
@@ -231,6 +238,34 @@ export function appendSubmissionStatus(submissionId, payload) {
   })();
 
   return { ok: true, status: 201, body: { ok: true, event: { quote_id: submissionId, status: payload.status, note: payload.note || '', changed_at: now } } };
+}
+
+export function softDeleteSubmission(submissionId, payload = {}) {
+  const database = getDb();
+  const exists = database.prepare(`
+    SELECT s.id, s.status
+    FROM submissions s
+    WHERE s.id = ?
+      AND s.deleted_at IS NULL
+  `).get(submissionId);
+
+  if (!exists) {
+    return { ok: false, status: 404, body: { ok: false, message: 'Cotizacion no encontrada' } };
+  }
+
+  const now = new Date().toISOString();
+  const note = String(payload.note || 'Registro eliminado desde admin').trim().slice(0, 500);
+
+  database.transaction(() => {
+    database.prepare('UPDATE submissions SET deleted_at = ?, deleted_note = ?, updated_at = ? WHERE id = ?')
+      .run(now, note, now, submissionId);
+    database.prepare(`
+      INSERT INTO submission_events (submission_id, status, note, created_at)
+      VALUES (?, ?, ?, ?)
+    `).run(submissionId, exists.status, note, now);
+  })();
+
+  return { ok: true, status: 200, body: { ok: true, deleted_at: now } };
 }
 
 export function updateFormStatuses(formSlug, statuses, defaultStatus) {

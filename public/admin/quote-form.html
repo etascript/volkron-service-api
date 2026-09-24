@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Volkron - Nueva solicitud</title>
+    <link rel="stylesheet" href="/admin/assets/admin.css">
+  </head>
+  <body>
+    <div class="admin-layout">
+      <div class="sidebar-backdrop" data-sidebar-close></div>
+      <aside class="sidebar" data-sidebar>
+        <div class="sidebar__brand">
+          <span class="eyebrow">Volkron Servicios</span>
+          <strong>Panel operativo</strong>
+        </div>
+        <nav class="sidebar__nav" aria-label="Navegacion admin">
+          <a href="/admin">Cotizaciones</a>
+          <a class="is-active" href="/admin/new">Nueva solicitud</a>
+          <a href="/admin/stats">Estadisticas</a>
+          <a href="/admin/settings">Opciones</a>
+        </nav>
+        <form class="sidebar__logout" method="post" action="/admin/logout">
+          <button class="ghost-button" type="submit">Salir</button>
+        </form>
+      </aside>
+
+      <div class="admin-main">
+        <header class="topbar">
+          <button class="menu-button" type="button" data-sidebar-toggle aria-label="Abrir menu">Menu</button>
+          <div>
+            <span class="eyebrow">Volkron Servicios</span>
+            <h1>Nueva solicitud</h1>
+          </div>
+        </header>
+
+        <main class="shell">
+          <section class="settings-panel">
+            <div class="settings-panel__head">
+              <div>
+                <span class="eyebrow">Ingreso manual</span>
+                <h2>Crear cotizacion</h2>
+              </div>
+            </div>
+
+            <form class="admin-form" data-quote-form novalidate>
+              <div class="admin-form__grid">
+                <label>
+                  <span>Nombre completo *</span>
+                  <input name="nombre" autocomplete="name" required>
+                </label>
+                <label>
+                  <span>RUT *</span>
+                  <input name="rut" required>
+                </label>
+                <label>
+                  <span>Telefono *</span>
+                  <input name="telefono" autocomplete="tel" required>
+                </label>
+                <label>
+                  <span>Email *</span>
+                  <input name="email" type="email" autocomplete="email" required>
+                </label>
+                <label>
+                  <span>Region *</span>
+                  <input name="region" required>
+                </label>
+                <label>
+                  <span>Comuna *</span>
+                  <input name="comuna" required>
+                </label>
+                <label>
+                  <span>Servicio *</span>
+                  <input name="tipo_servicio" list="service-options" required>
+                </label>
+                <label>
+                  <span>Origen</span>
+                  <input name="servicio_origen" placeholder="Admin">
+                </label>
+                <label>
+                  <span>Fecha visita</span>
+                  <input name="fecha_visita" type="date">
+                </label>
+                <label>
+                  <span>Horario</span>
+                  <input name="horario" placeholder="09:00 - 11:00">
+                </label>
+              </div>
+
+              <label class="admin-form__full">
+                <span>Detalle</span>
+                <textarea name="detalle" rows="5"></textarea>
+              </label>
+
+              <datalist id="service-options">
+                <option value="Regularizacion SEC"></option>
+                <option value="Empalme electrico"></option>
+                <option value="Aumento de potencia"></option>
+                <option value="Parcelaciones"></option>
+                <option value="Malla de puesta a tierra"></option>
+                <option value="Medicion de puesta a tierra"></option>
+                <option value="Mufas de media tension"></option>
+                <option value="Tableros electricos"></option>
+                <option value="Mantenimiento de transformadores"></option>
+                <option value="Lavado de aisladores (TCT)"></option>
+              </datalist>
+
+              <div class="form-feedback" data-form-feedback aria-live="polite"></div>
+              <button class="primary-button" type="submit">Guardar solicitud</button>
+            </form>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <script src="/admin/assets/layout.js" defer></script>
+    <script src="/admin/assets/quote-form.js" defer></script>
+  </body>
+</html>

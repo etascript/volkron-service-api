@@ -1,10 +1,13 @@
 import { z } from 'zod';
 import {
   appendSubmissionStatus,
+  createSubmission,
   getFormStatuses,
   listSubmissions,
+  softDeleteSubmission,
   updateFormStatuses,
 } from './forms.js';
+import { quoteSchema } from './validation.js';
 
 const statusSchema = z.object({
   status: z.string().trim().min(1).max(80),
@@ -162,6 +165,32 @@ export async function appendStatusEvent(quoteId, payload) {
   }
 
   return appendSubmissionStatus(quoteId, parsed.data);
+}
+
+export async function createManualQuote(payload) {
+  const parsed = quoteSchema.omit({ website: true }).safeParse(payload);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      status: 400,
+      body: {
+        ok: false,
+        message: 'Datos invalidos',
+        issues: parsed.error.issues,
+      },
+    };
+  }
+
+  const id = createSubmission('cotizacion', parsed.data, {
+    source: 'admin',
+    userAgent: 'admin-panel',
+  });
+
+  return { ok: true, status: 201, body: { ok: true, id } };
+}
+
+export async function deleteQuote(quoteId, payload) {
+  return softDeleteSubmission(quoteId, payload);
 }
 
 export async function getSettings() {

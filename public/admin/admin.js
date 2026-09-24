@@ -218,6 +218,11 @@ function renderDetail(item) {
         <button class="primary-button" type="submit">Guardar estado</button>
       </form>
     </section>
+
+    <section class="detail-section">
+      <button class="danger-button danger-button--full" type="button" data-delete-quote="${escapeHtml(item.id)}">Eliminar solicitud</button>
+      <p class="danger-hint">La solicitud quedara oculta del panel, pero se mantiene almacenada como eliminada.</p>
+    </section>
   `;
 }
 
@@ -303,6 +308,29 @@ async function saveStatus(event) {
       button.disabled = false;
       button.textContent = 'Guardar estado';
     }
+  }
+}
+
+async function deleteSelectedQuote(id) {
+  if (!id) return;
+  const confirmed = window.confirm('Esta accion ocultara la solicitud del panel sin borrarla definitivamente. Deseas continuar?');
+  if (!confirmed) return;
+
+  const note = window.prompt('Nota de eliminacion (opcional):', 'Eliminada por error o limpieza') || '';
+
+  try {
+    const response = await fetch('/admin/api/quotes/' + encodeURIComponent(id), {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.message || 'No se pudo eliminar la solicitud.');
+    toast('Solicitud eliminada.');
+    closeDrawer();
+    await loadQuotes();
+  } catch (error) {
+    toast(error.message);
   }
 }
 
@@ -394,6 +422,10 @@ els.drawer.addEventListener('click', (event) => {
 });
 els.detail.addEventListener('submit', (event) => {
   if (event.target.matches('[data-status-form]')) saveStatus(event);
+});
+els.detail.addEventListener('click', (event) => {
+  const deleter = event.target.closest('[data-delete-quote]');
+  if (deleter) deleteSelectedQuote(deleter.dataset.deleteQuote);
 });
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') closeDrawer();

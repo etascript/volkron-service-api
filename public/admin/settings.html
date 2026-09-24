@@ -7,38 +7,53 @@
     <link rel="stylesheet" href="/admin/assets/admin.css">
   </head>
   <body>
-    <header class="topbar">
-      <div>
-        <span class="eyebrow">Volkron Servicios</span>
-        <h1>Opciones</h1>
-      </div>
-      <div class="topbar__actions">
-        <a class="ghost-button" href="/admin">Cotizaciones</a>
-        <a class="ghost-button" href="/admin/stats">Estadisticas</a>
-        <a class="ghost-button" href="/admin/settings">Opciones</a>
-        <form method="post" action="/admin/logout">
+    <div class="admin-layout">
+      <div class="sidebar-backdrop" data-sidebar-close></div>
+      <aside class="sidebar" data-sidebar>
+        <div class="sidebar__brand">
+          <span class="eyebrow">Volkron Servicios</span>
+          <strong>Panel operativo</strong>
+        </div>
+        <nav class="sidebar__nav" aria-label="Navegacion admin">
+          <a href="/admin">Cotizaciones</a>
+          <a href="/admin/new">Nueva solicitud</a>
+          <a href="/admin/stats">Estadisticas</a>
+          <a class="is-active" href="/admin/settings">Opciones</a>
+        </nav>
+        <form class="sidebar__logout" method="post" action="/admin/logout">
           <button class="ghost-button" type="submit">Salir</button>
         </form>
-      </div>
-    </header>
+      </aside>
 
-    <main class="shell">
-      <section class="settings-panel">
-        <div class="settings-panel__head">
+      <div class="admin-main">
+        <header class="topbar">
+          <button class="menu-button" type="button" data-sidebar-toggle aria-label="Abrir menu">Menu</button>
           <div>
-            <span class="eyebrow">Formulario cotizacion</span>
-            <h2>Estados del registro</h2>
+            <span class="eyebrow">Volkron Servicios</span>
+            <h1>Opciones</h1>
           </div>
-          <button class="ghost-button settings-add" type="button" data-add-status>Agregar estado</button>
-        </div>
+        </header>
 
-        <form data-settings-form>
-          <div class="settings-statuses" data-statuses></div>
-          <button class="primary-button" type="submit">Guardar opciones</button>
-        </form>
-      </section>
-    </main>
+        <main class="shell">
+          <section class="settings-panel">
+            <div class="settings-panel__head">
+              <div>
+                <span class="eyebrow">Formulario cotizacion</span>
+                <h2>Estados del registro</h2>
+              </div>
+              <button class="ghost-button settings-add" type="button" data-add-status>Agregar estado</button>
+            </div>
 
+            <form data-settings-form>
+              <div class="settings-statuses" data-statuses></div>
+              <button class="primary-button" type="submit">Guardar opciones</button>
+            </form>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <script src="/admin/assets/layout.js" defer></script>
     <script src="/admin/assets/settings.js" defer></script>
   </body>
 </html>
