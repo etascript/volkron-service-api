@@ -27,6 +27,20 @@ app.use(
 );
 app.use(express.json({ limit: '64kb' }));
 
+app.get('/', (_req, res) => {
+  res.json({
+    ok: true,
+    service: 'volkron-servicios-api',
+    message: 'Volkron Servicios API operativa',
+    endpoints: {
+      health: '/health',
+      availability: '/api/availability?month=YYYY-MM',
+      holidays: '/api/holidays?year=YYYY',
+      quote: '/api/quote',
+    },
+  });
+});
+
 app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
