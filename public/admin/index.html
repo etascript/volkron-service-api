@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Volkron - Cotizaciones</title>
+    <link rel="stylesheet" href="/admin/assets/admin.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <span class="eyebrow">Volkron Servicios</span>
+        <h1>Cotizaciones</h1>
+      </div>
+      <button class="ghost-button" type="button" data-refresh>Actualizar</button>
+    </header>
+
+    <main class="shell">
+      <section class="filters" aria-label="Filtros">
+        <label class="search">
+          <span>Buscar</span>
+          <input type="search" data-filter="q" placeholder="Nombre, RUT, email, telefono...">
+        </label>
+
+        <div class="filter-grid">
+          <label>
+            <span>Estado</span>
+            <select data-filter="status">
+              <option value="">Todos</option>
+            </select>
+          </label>
+          <label>
+            <span>Region</span>
+            <select data-filter="region">
+              <option value="">Todas</option>
+            </select>
+          </label>
+          <label>
+            <span>Comuna</span>
+            <select data-filter="comuna">
+              <option value="">Todas</option>
+            </select>
+          </label>
+          <label>
+            <span>Servicio</span>
+            <select data-filter="service">
+              <option value="">Todos</option>
+            </select>
+          </label>
+          <label>
+            <span>Desde</span>
+            <input type="date" data-filter="from">
+          </label>
+          <label>
+            <span>Hasta</span>
+            <input type="date" data-filter="to">
+          </label>
+        </div>
+      </section>
+
+      <section class="summary" aria-live="polite">
+        <strong data-total>0</strong>
+        <span>solicitudes encontradas</span>
+      </section>
+
+      <section class="quotes" data-quotes>
+        <div class="empty">Cargando solicitudes...</div>
+      </section>
+    </main>
+
+    <div class="drawer" data-drawer aria-hidden="true">
+      <div class="drawer__backdrop" data-close-drawer></div>
+      <aside class="drawer__panel" aria-label="Detalle de cotizacion">
+        <button class="drawer__close" type="button" data-close-drawer>&times;</button>
+        <div data-detail></div>
+      </aside>
+    </div>
+
+    <script src="/admin/assets/admin.js" defer></script>
+  </body>
+</html>

@@ -7,6 +7,9 @@ services:
     env_file:
       - .env
 
+    volumes:
+      - ./data:/app/data
+
     expose:
       - "9001"
 

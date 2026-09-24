@@ -23,6 +23,10 @@ let sheetsClient;
 
 function getSheetsClient() {
   if (sheetsClient) return sheetsClient;
+  if (!config.googleSheetsEnabled) throw new Error('Google Sheets is disabled');
+  if (!config.sheetId || !config.serviceAccountEmail || !config.privateKey) {
+    throw new Error('Google Sheets credentials are incomplete');
+  }
 
   const auth = new google.auth.JWT({
     email: config.serviceAccountEmail,
@@ -39,6 +43,7 @@ function tabRange(range) {
 }
 
 export async function ensureHeaders() {
+  if (!config.googleSheetsEnabled) return;
   const sheets = getSheetsClient();
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: config.sheetId,
@@ -59,11 +64,12 @@ export async function ensureHeaders() {
 }
 
 export async function appendQuote(quote, meta = {}) {
+  if (!config.googleSheetsEnabled) return;
   await ensureHeaders();
 
   const sheets = getSheetsClient();
   const row = [
-    new Date().toISOString(),
+    meta.createdAt || new Date().toISOString(),
     'pending',
     quote.nombre,
     quote.rut,
@@ -92,6 +98,7 @@ export async function appendQuote(quote, meta = {}) {
 }
 
 export async function getReservedSlots(month) {
+  if (!config.googleSheetsEnabled) return new Map();
   await ensureHeaders();
 
   const sheets = getSheetsClient();

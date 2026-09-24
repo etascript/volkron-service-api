@@ -3,9 +3,10 @@
 Servicio dockerizable para:
 
 - Recibir solicitudes del formulario de cotizacion.
-- Guardar cada solicitud en Google Sheets.
+- Guardar cada solicitud en almacenamiento local JSONL cifrado.
+- Exponer un panel operativo en `/admin`.
 - Entregar disponibilidad mensual para el calendario del sitio.
-- Bloquear horarios ya tomados segun registros existentes en la hoja.
+- Bloquear horarios ya tomados segun registros locales y estados del panel.
 
 ## Endpoints
 
@@ -14,22 +15,99 @@ GET /health
 GET /api/availability?month=2026-09
 GET /api/holidays?year=2026
 POST /api/quote
+GET /admin
+GET /admin/api/quotes
+POST /admin/api/quotes/:id/status
 ```
 
-## Google Sheets
+## Almacenamiento local
 
-1. Crea una hoja con una pestaña llamada `Cotizaciones`.
-2. Crea una Service Account en Google Cloud.
-3. Comparte la hoja con el email de la Service Account como editor.
-4. Copia `.env.example` a `.env` y completa:
+Cada `POST /api/quote` valido escribe una linea cifrada en formato JSONL.
+Por defecto se guarda en:
+
+```txt
+./data/quotes/YYYY-MM.jsonl
+```
+
+Los cambios de estado del panel se guardan en:
+
+```txt
+./data/status-events.jsonl
+```
+
+En Docker Compose, `./data` queda montado como volumen local:
+
+```yaml
+volumes:
+  - ./data:/app/data
+```
+
+Genera una clave de cifrado para `.env`:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+Configura:
 
 ```env
+BACKUP_ENCRYPTION_KEY=pega-aqui-la-clave-base64
+```
+
+Sin esa clave el servicio no inicia. Si se pierde la clave, no se podran leer las cotizaciones cifradas.
+Los archivos locales no deben subirse a Git. `data/` queda ignorado por `.gitignore`.
+
+Si ya existen archivos JSONL antiguos en texto plano, cifra los historicos en la VM:
+
+```bash
+docker compose exec volkron-servicios-api npm run encrypt:data
+```
+
+El script deja una copia `.bak-TIMESTAMP` antes de reescribir cada archivo cifrado.
+
+## Panel admin
+
+El panel interno queda disponible en:
+
+```http
+GET /admin
+```
+
+Permite listar, buscar y filtrar las cotizaciones guardadas en `data/quotes/*.jsonl`.
+Tambien permite cambiar el estado operativo de una cotizacion.
+
+Los cambios de estado no reescriben la cotizacion original; se agregan como eventos cifrados append-only.
+
+Estados disponibles:
+
+```txt
+received, pending, contacted, quoted, scheduled, won, lost, cancelled
+```
+
+Importante: `/admin` contiene datos personales.
+
+El proyecto incluye Basic Auth para todo `/admin*`. Configura credenciales en `.env`:
+
+```env
+ADMIN_USER=volkron
+ADMIN_PASSWORD=usa-una-clave-larga
+```
+
+Si esas variables no existen, `/admin*` responde `503 Admin no configurado`.
+Las rutas publicas de la tienda (`/api/quote`, `/api/availability`, `/api/holidays`) no usan esta autenticacion.
+
+## Google Sheets opcional
+
+Google Sheets queda como salida legacy opcional. Para activarla:
+
+```env
+GOOGLE_SHEETS_ENABLED=true
 GOOGLE_SHEET_ID=
 GOOGLE_SERVICE_ACCOUNT_EMAIL=
 GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 ```
 
-El servicio crea encabezados si la hoja esta vacia.
+Si Google Sheets falla, la solicitud se mantiene guardada localmente y la API responde correctamente.
 
 ## Feriados Chile
 
@@ -54,22 +132,19 @@ GET /api/holidays?refresh=true
 docker compose up -d --build
 ```
 
-## Nginx recomendado
+## Caddy
 
-Publica la API detras de HTTPS, por ejemplo:
+Ejemplo:
 
-```nginx
-location /volkron-api/ {
-  proxy_pass http://127.0.0.1:8080/;
-  proxy_set_header Host $host;
-  proxy_set_header X-Real-IP $remote_addr;
-  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  proxy_set_header X-Forwarded-Proto $scheme;
+```caddy
+api.volkron.kappascript.cl {
+  encode gzip zstd
+  reverse_proxy volkron-servicios-api:9001
 }
 ```
 
 Luego en el frontend:
 
 ```js
-const API_BASE_URL = "https://www.volkronenergy.cl/volkron-api";
+const API_BASE_URL = "https://api.volkron.kappascript.cl";
 ```
