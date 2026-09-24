@@ -3,6 +3,7 @@ const state = {
   filters: {},
   selected: null,
   timer: null,
+  sortDate: 'desc',
 };
 
 const statusLabels = {
@@ -23,6 +24,7 @@ const els = {
   detail: document.querySelector('[data-detail]'),
   filters: document.querySelectorAll('[data-filter]'),
   refresh: document.querySelector('[data-refresh]'),
+  export: document.querySelector('[data-export]'),
 };
 
 function escapeHtml(value) {
@@ -39,7 +41,7 @@ function formatDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat('es-CL', {
-    dateStyle: 'medium',
+    dateStyle: 'short',
     timeStyle: 'short',
   }).format(date);
 }
@@ -51,6 +53,14 @@ function filterParams() {
   });
   params.set('limit', '1000');
   return params;
+}
+
+function sortedItems() {
+  return [...state.items].sort((a, b) => {
+    const left = String(a.created_at || '');
+    const right = String(b.created_at || '');
+    return state.sortDate === 'asc' ? left.localeCompare(right) : right.localeCompare(left);
+  });
 }
 
 function optionList(values, current, firstLabel) {
@@ -90,48 +100,52 @@ function syncFilterOptions(filters) {
   if (service) service.innerHTML = optionList(filters.services, current.service, 'Todos');
 }
 
-function quoteCard(item) {
+function quoteRow(item) {
   const quote = item.quote || {};
+  const visit = [quote.fecha_visita, quote.horario].filter(Boolean).join(' - ') || 'Sin fecha';
   return `
-    <article class="quote-card">
-      <button class="quote-card__button" type="button" data-open="${escapeHtml(item.id)}">
-        <div class="quote-card__head">
-          <div>
-            <h2>${escapeHtml(quote.nombre)}</h2>
-            <p>${escapeHtml(formatDate(item.created_at))}</p>
-          </div>
-          <span class="status-pill" data-status="${escapeHtml(item.status)}">${escapeHtml(statusLabels[item.status] || item.status)}</span>
-        </div>
-        <div>
-          <span class="field-label">Contacto</span>
-          <strong>${escapeHtml(quote.telefono || '-')}</strong>
-          <p>${escapeHtml(quote.email || '-')}</p>
-        </div>
-        <div>
-          <span class="field-label">Ubicacion</span>
-          <strong>${escapeHtml(quote.region || '-')}</strong>
-          <p>${escapeHtml(quote.comuna || '-')}</p>
-        </div>
-        <div>
-          <span class="field-label">Servicio</span>
-          <strong>${escapeHtml(quote.tipo_servicio || '-')}</strong>
-          <p>${escapeHtml(quote.fecha_visita || 'Sin fecha')} ${escapeHtml(quote.horario || '')}</p>
-        </div>
-        <span class="field-label">Ver detalle</span>
-      </button>
-    </article>
+    <tr class="quote-row" data-open="${escapeHtml(item.id)}" tabindex="0">
+      <td data-label="Fecha">${escapeHtml(formatDate(item.created_at))}</td>
+      <td data-label="Estado"><span class="status-pill" data-status="${escapeHtml(item.status)}">${escapeHtml(statusLabels[item.status] || item.status)}</span></td>
+      <td data-label="Nombre"><strong>${escapeHtml(quote.nombre || '-')}</strong><span>${escapeHtml(quote.rut || '-')}</span></td>
+      <td data-label="Contacto"><strong>${escapeHtml(quote.telefono || '-')}</strong><span>${escapeHtml(quote.email || '-')}</span></td>
+      <td data-label="Ubicacion"><strong>${escapeHtml(quote.region || '-')}</strong><span>${escapeHtml(quote.comuna || '-')}</span></td>
+      <td data-label="Servicio"><strong>${escapeHtml(quote.tipo_servicio || '-')}</strong><span>${escapeHtml(visit)}</span></td>
+      <td data-label="Accion"><button class="row-action" type="button" data-open="${escapeHtml(item.id)}">Ver</button></td>
+    </tr>
   `;
 }
 
 function renderQuotes() {
-  els.total.textContent = String(state.items.length);
+  const items = sortedItems();
+  els.total.textContent = String(items.length);
 
-  if (!state.items.length) {
+  if (!items.length) {
     els.quotes.innerHTML = '<div class="empty">No hay solicitudes con los filtros actuales.</div>';
     return;
   }
 
-  els.quotes.innerHTML = state.items.map(quoteCard).join('');
+  const direction = state.sortDate === 'asc' ? 'Asc' : 'Desc';
+  els.quotes.innerHTML = `
+    <div class="quotes-table-wrap">
+      <table class="quotes-table">
+        <thead>
+          <tr>
+            <th><button type="button" class="sort-button" data-sort-date>Fecha <span>${direction}</span></button></th>
+            <th>Estado</th>
+            <th>Nombre / RUT</th>
+            <th>Contacto</th>
+            <th>Ubicacion</th>
+            <th>Servicio / Visita</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map(quoteRow).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 function detailField(label, value) {
@@ -148,6 +162,23 @@ function statusOptions(current) {
     const selected = status === current ? ' selected' : '';
     return '<option value="' + escapeHtml(status) + '"' + selected + '>' + escapeHtml(statusLabels[status] || status) + '</option>';
   }).join('');
+}
+
+function timeline(item) {
+  const history = item.status_history || [];
+  if (!history.length) return '<p class="empty-inline">Sin historial.</p>';
+
+  return `
+    <ol class="timeline">
+      ${history.map((event) => `
+        <li>
+          <span class="timeline__date">${escapeHtml(formatDate(event.changed_at))}</span>
+          <strong>${escapeHtml(statusLabels[event.status] || event.status)}</strong>
+          ${event.note ? '<p>' + escapeHtml(event.note) + '</p>' : ''}
+        </li>
+      `).join('')}
+    </ol>
+  `;
 }
 
 function renderDetail(item) {
@@ -176,6 +207,11 @@ function renderDetail(item) {
     </section>
 
     <section class="detail-section">
+      <span class="field-label">Historial</span>
+      ${timeline(item)}
+    </section>
+
+    <section class="detail-section">
       <form class="status-form" data-status-form>
         <label>
           <span class="field-label">Cambiar estado</span>
@@ -183,7 +219,7 @@ function renderDetail(item) {
         </label>
         <label>
           <span class="field-label">Nota interna</span>
-          <textarea name="note" placeholder="Opcional">${escapeHtml(item.status_note || '')}</textarea>
+          <textarea name="note" placeholder="Opcional"></textarea>
         </label>
         <button class="primary-button" type="submit">Guardar estado</button>
       </form>
@@ -258,9 +294,10 @@ async function saveStatus(event) {
     });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.message || 'No se pudo guardar el estado.');
+    const selectedId = state.selected.id;
     toast('Estado actualizado.');
     await loadQuotes();
-    const updated = state.items.find((item) => item.id === state.selected.id);
+    const updated = state.items.find((item) => item.id === selectedId);
     if (updated) {
       state.selected = updated;
       renderDetail(updated);
@@ -275,6 +312,61 @@ async function saveStatus(event) {
   }
 }
 
+function csvCell(value) {
+  return '"' + String(value || '').replace(/"/g, '""') + '"';
+}
+
+function exportCurrentView() {
+  const headers = [
+    'ID',
+    'Fecha creacion',
+    'Estado',
+    'Nombre',
+    'RUT',
+    'Telefono',
+    'Email',
+    'Region',
+    'Comuna',
+    'Servicio',
+    'Origen',
+    'Fecha visita',
+    'Horario',
+    'Detalle',
+    'Ultima nota',
+  ];
+
+  const rows = sortedItems().map((item) => {
+    const quote = item.quote || {};
+    return [
+      item.id,
+      item.created_at,
+      statusLabels[item.status] || item.status,
+      quote.nombre,
+      quote.rut,
+      quote.telefono,
+      quote.email,
+      quote.region,
+      quote.comuna,
+      quote.tipo_servicio,
+      quote.servicio_origen,
+      quote.fecha_visita,
+      quote.horario,
+      quote.detalle,
+      item.status_note,
+    ];
+  });
+
+  const csv = '\ufeff' + [headers, ...rows].map((row) => row.map(csvCell).join(';')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'cotizaciones-volkron-' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(link);
+  link.click();
+  URL.revokeObjectURL(link.href);
+  link.remove();
+}
+
 els.filters.forEach((field) => {
   field.addEventListener('input', () => {
     window.clearTimeout(state.timer);
@@ -284,9 +376,24 @@ els.filters.forEach((field) => {
 });
 
 els.refresh.addEventListener('click', loadQuotes);
+els.export.addEventListener('click', exportCurrentView);
 els.quotes.addEventListener('click', (event) => {
-  const button = event.target.closest('[data-open]');
-  if (button) openDrawer(button.dataset.open);
+  const sort = event.target.closest('[data-sort-date]');
+  if (sort) {
+    state.sortDate = state.sortDate === 'asc' ? 'desc' : 'asc';
+    renderQuotes();
+    return;
+  }
+
+  const opener = event.target.closest('[data-open]');
+  if (opener) openDrawer(opener.dataset.open);
+});
+els.quotes.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  const row = event.target.closest('[data-open]');
+  if (!row) return;
+  event.preventDefault();
+  openDrawer(row.dataset.open);
 });
 els.drawer.addEventListener('click', (event) => {
   if (event.target.hasAttribute('data-close-drawer')) closeDrawer();

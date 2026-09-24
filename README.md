@@ -75,8 +75,10 @@ GET /admin
 
 Permite listar, buscar y filtrar las cotizaciones guardadas en `data/quotes/*.jsonl`.
 Tambien permite cambiar el estado operativo de una cotizacion.
+La vista principal usa tabla responsive, permite ordenar por fecha y exportar a CSV compatible con Excel la vista filtrada actual.
 
 Los cambios de estado no reescriben la cotizacion original; se agregan como eventos cifrados append-only.
+El detalle de cada solicitud muestra la cronologia completa de estados.
 
 Estados disponibles:
 

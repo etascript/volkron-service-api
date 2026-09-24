@@ -42,6 +42,13 @@ textarea {
   color: #fff;
 }
 
+.topbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .eyebrow {
   display: block;
   margin-bottom: 4px;
@@ -93,7 +100,6 @@ h1 {
 
 .filters,
 .summary,
-.quote-card,
 .drawer__panel {
   background: var(--panel);
 }
@@ -159,59 +165,96 @@ h1 {
   font-size: 24px;
 }
 
-.quotes {
-  display: grid;
-  gap: 12px;
-}
-
-.quote-card {
+.quotes-table-wrap {
+  overflow-x: auto;
+  background: var(--panel);
   border: 1px solid var(--line);
 }
 
-.quote-card__button {
+.quotes-table {
   width: 100%;
-  padding: 16px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  text-align: left;
+  border-collapse: collapse;
+}
+
+.quotes-table thead {
+  display: none;
+}
+
+.quotes-table tbody,
+.quotes-table tr,
+.quotes-table td {
+  display: block;
+}
+
+.quote-row {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
   cursor: pointer;
 }
 
-.quote-card__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
+.quote-row:last-child {
+  border-bottom: 0;
 }
 
-.quote-card h2 {
-  margin: 0 0 4px;
-  font-size: 20px;
-  line-height: 1.15;
+.quote-row:focus,
+.quote-row:hover {
+  outline: 2px solid rgba(245, 223, 0, 0.8);
+  outline-offset: -2px;
 }
 
-.quote-card p {
-  margin: 0;
-  color: var(--muted);
-  line-height: 1.5;
-}
-
-.meta-grid {
+.quotes-table td {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
-  margin-top: 12px;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 12px;
+  padding: 8px 0;
+  line-height: 1.4;
+  vertical-align: top;
 }
 
-.meta-grid div {
-  min-width: 0;
+.quotes-table td::before {
+  content: attr(data-label);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
 }
 
-.meta-grid strong {
+.quotes-table td strong,
+.quotes-table td span {
   display: block;
   overflow-wrap: anywhere;
+}
+
+.quotes-table td > span:not(.status-pill) {
+  color: var(--muted);
+}
+
+.row-action,
+.sort-button {
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.row-action {
+  padding: 0;
+}
+
+.sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+}
+
+.sort-button span {
+  color: var(--yellow);
+  font-size: 10px;
 }
 
 .status-pill {
@@ -323,6 +366,52 @@ h1 {
   line-height: 1.5;
 }
 
+.empty-inline {
+  margin: 10px 0 0;
+  color: var(--muted);
+}
+
+.timeline {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline li {
+  position: relative;
+  padding: 0 0 0 18px;
+}
+
+.timeline li::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  background: var(--yellow);
+  border: 1px solid #1f1f1f;
+}
+
+.timeline__date {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.timeline strong {
+  display: block;
+  margin-top: 2px;
+}
+
+.timeline p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .status-form {
   display: grid;
   gap: 12px;
@@ -356,31 +445,59 @@ h1 {
 }
 
 @media (min-width: 1080px) {
-  .quotes {
-    gap: 0;
+  .quotes-table thead {
+    display: table-header-group;
   }
 
-  .quote-card {
-    border-bottom: 0;
+  .quotes-table tbody {
+    display: table-row-group;
   }
 
-  .quote-card:last-child {
+  .quotes-table tr {
+    display: table-row;
+  }
+
+  .quotes-table th,
+  .quotes-table td {
+    display: table-cell;
+    padding: 13px 14px;
     border-bottom: 1px solid var(--line);
+    text-align: left;
   }
 
-  .quote-card__button {
-    display: grid;
-    grid-template-columns: minmax(220px, 1.3fr) minmax(180px, 1fr) minmax(160px, 0.9fr) minmax(180px, 1fr) auto;
-    gap: 18px;
-    align-items: center;
+  .quotes-table th {
+    position: sticky;
+    top: 91px;
+    z-index: 2;
+    background: #292929;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
   }
 
-  .quote-card__head,
-  .meta-grid {
-    display: contents;
+  .quotes-table td::before {
+    display: none;
   }
 
-  .quote-card h2 {
-    font-size: 18px;
+  .quote-row {
+    padding: 0;
+  }
+
+  .row-action {
+    color: #444;
+  }
+}
+
+@media (max-width: 640px) {
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .topbar__actions,
+  .topbar__actions button {
+    width: 100%;
   }
 }

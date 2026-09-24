@@ -67,16 +67,23 @@ async function readJsonl(filePath) {
   }
 }
 
-async function readStatusEvents() {
+async function readStatusEventCollections() {
   const events = await readJsonl(config.statusEventsFile);
   const latestById = new Map();
+  const eventsById = new Map();
 
   events.forEach((event) => {
     if (!event.quote_id || !event.status) return;
+    if (!eventsById.has(event.quote_id)) eventsById.set(event.quote_id, []);
+    eventsById.get(event.quote_id).push(event);
     latestById.set(event.quote_id, event);
   });
 
-  return latestById;
+  eventsById.forEach((items) => {
+    items.sort((a, b) => String(a.changed_at || '').localeCompare(String(b.changed_at || '')));
+  });
+
+  return { latestById, eventsById };
 }
 
 function applyFilters(items, query) {
@@ -111,19 +118,35 @@ function uniqueOptions(items, field) {
 }
 
 export async function listQuotes(query = {}) {
-  const statusEvents = await readStatusEvents();
+  const { latestById, eventsById } = await readStatusEventCollections();
   const records = await readQuoteBackups();
 
   const normalizedRecords = records
     .filter((record) => record.id && record.quote)
     .map((record) => {
-      const statusEvent = statusEvents.get(record.id);
+      const statusEvent = latestById.get(record.id);
+      const history = [
+        {
+          status: record.status || 'received',
+          note: '',
+          changed_at: record.created_at,
+          type: 'created',
+        },
+        ...(eventsById.get(record.id) || []).map((event) => ({
+          status: event.status,
+          note: event.note || '',
+          changed_at: event.changed_at,
+          type: 'status',
+        })),
+      ];
+
       return {
         id: record.id,
         created_at: record.created_at,
         status: statusEvent?.status || record.status || 'received',
         status_note: statusEvent?.note || '',
         status_changed_at: statusEvent?.changed_at || '',
+        status_history: history,
         quote: record.quote,
         meta: record.meta || {},
       };
