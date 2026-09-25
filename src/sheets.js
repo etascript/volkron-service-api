@@ -98,6 +98,19 @@ export async function appendQuote(quote, meta = {}) {
 }
 
 export async function getReservedSlots(month) {
+  const counts = await getReservedSlotCounts(month);
+  const reservedByDate = new Map();
+
+  for (const key of counts.keys()) {
+    const [fechaVisita, horario] = key.split('|');
+    if (!reservedByDate.has(fechaVisita)) reservedByDate.set(fechaVisita, new Set());
+    reservedByDate.get(fechaVisita).add(horario);
+  }
+
+  return reservedByDate;
+}
+
+export async function getReservedSlotCounts(month) {
   if (!config.googleSheetsEnabled) return new Map();
   await ensureHeaders();
 
@@ -108,7 +121,7 @@ export async function getReservedSlots(month) {
   });
 
   const values = response.data.values || [];
-  const reservedByDate = new Map();
+  const counts = new Map();
 
   values.forEach((row) => {
     const status = (row[1] || '').toLowerCase();
@@ -119,9 +132,9 @@ export async function getReservedSlots(month) {
     if (!horario) return;
     if (['cancelled', 'canceled', 'rechazada', 'cancelada'].includes(status)) return;
 
-    if (!reservedByDate.has(fechaVisita)) reservedByDate.set(fechaVisita, new Set());
-    reservedByDate.get(fechaVisita).add(horario);
+    const key = `${fechaVisita}|${horario}`;
+    counts.set(key, (counts.get(key) || 0) + 1);
   });
 
-  return reservedByDate;
+  return counts;
 }

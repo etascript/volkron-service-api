@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getDb } from './db.js';
 import { config } from './config.js';
 import { normalizeDate, toDateKey } from './calendar.js';
+import { getReservedSlotCounts } from './sheets.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HOLIDAY_MODES = new Set(['none', 'national_block', 'manual_only', 'custom']);
@@ -257,7 +258,7 @@ export function updateSchedule(formSlug, payload) {
   return { ok: true, status: 200, body: { ok: true, schedule: getSchedule(formSlug) } };
 }
 
-function reservationCounts(formId, month) {
+function reservationCountsFromSqlite(formId, month) {
   const rows = getDb().prepare(`
     SELECT
       date_value.value AS date,
@@ -278,6 +279,11 @@ function reservationCounts(formId, month) {
     counts.set(key, (counts.get(key) || 0) + 1);
   });
   return counts;
+}
+
+async function reservationCounts(formId, month) {
+  if (config.googleSheetsEnabled) return getReservedSlotCounts(month);
+  return reservationCountsFromSqlite(formId, month);
 }
 
 function slotsForDate(schedule, dateKey, date, holidaySet) {
@@ -311,11 +317,11 @@ function slotsForDate(schedule, dateKey, date, holidaySet) {
   return { slots, reason: slots.length ? null : weekend ? 'weekend' : holiday ? 'holiday' : 'no_slots' };
 }
 
-export function buildFormAvailability(formSlug, month, holidaySet = new Set()) {
+export async function buildFormAvailability(formSlug, month, holidaySet = new Set()) {
   const schedule = getSchedule(formSlug);
   const { year, monthIndex } = parseMonth(month);
   const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-  const counts = reservationCounts(schedule.form.id, month);
+  const counts = await reservationCounts(schedule.form.id, month);
   const days = [];
 
   for (let day = 1; day <= daysInMonth; day += 1) {
@@ -362,15 +368,15 @@ export function buildFormAvailability(formSlug, month, holidaySet = new Set()) {
   };
 }
 
-export function isFormDateSelectable(formSlug, date, slotLabel, holidaySet = new Set()) {
+export async function isFormDateSelectable(formSlug, date, slotLabel, holidaySet = new Set()) {
   const dateKey = normalizeDate(date);
   if (!dateKey) return false;
-  const availability = buildFormAvailability(formSlug, dateKey.slice(0, 7), holidaySet);
+  const availability = await buildFormAvailability(formSlug, dateKey.slice(0, 7), holidaySet);
   const day = availability.days.find((item) => item.date === dateKey);
   return Boolean(day?.slots.some((slot) => slot.label === slotLabel && slot.available));
 }
 
-export function reservedSlotCountsForMonth(formSlug, month) {
+export async function reservedSlotCountsForMonth(formSlug, month) {
   const schedule = getSchedule(formSlug);
   return reservationCounts(schedule.form.id, month);
 }

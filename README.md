@@ -198,9 +198,9 @@ SMTP_FROM=
 El enlace apunta a `/admin/reset-password?token=...`, expira en 1 hora y solo puede usarse una vez.
 Si SMTP no esta configurado, el servicio registra el enlace en logs como fallback de desarrollo.
 
-## Google Sheets opcional
+## Google Sheets
 
-Google Sheets queda como salida legacy opcional. Para activarla:
+Google Sheets se puede activar para operar como la planilla visible del cliente. Para activarla:
 
 ```env
 GOOGLE_SHEETS_ENABLED=true
@@ -209,7 +209,15 @@ GOOGLE_SERVICE_ACCOUNT_EMAIL=
 GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 ```
 
-Si Google Sheets falla, la solicitud se mantiene guardada localmente y la API responde correctamente.
+Con `GOOGLE_SHEETS_ENABLED=true`, la hoja pasa a ser mandatoria para:
+
+- escribir cada solicitud recibida,
+- leer horarios ya tomados al construir la disponibilidad del calendario,
+- bloquear un horario cuando ya exista en la hoja con estado activo.
+
+Si Google Sheets falla en este modo, la API responde con error para que no parezca que la reserva quedo registrada en la planilla del cliente. SQLite y los respaldos locales siguen guardando una copia operativa/auditoria.
+
+Con `GOOGLE_SHEETS_ENABLED=false`, el sistema funciona solo con SQLite y los bloqueos se calculan desde los registros locales.
 
 ## Feriados Chile
 

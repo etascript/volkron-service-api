@@ -9,7 +9,6 @@ import { config } from './config.js';
 import {
   currentMonthKey,
   normalizeDate,
-  normalizeMonthFromDate,
 } from './calendar.js';
 import { appendQuote } from './sheets.js';
 import { quoteSchema } from './validation.js';
@@ -151,7 +150,7 @@ app.get('/api/availability', async (req, res, next) => {
   try {
     const month = String(req.query.month || currentMonthKey());
     const holidays = await getHolidaySet();
-    res.json(buildFormAvailability('cotizacion', month, holidays));
+    res.json(await buildFormAvailability('cotizacion', month, holidays));
   } catch (error) {
     next(error);
   }
@@ -161,7 +160,7 @@ app.get('/api/forms/:slug/availability', async (req, res, next) => {
   try {
     const month = String(req.query.month || currentMonthKey());
     const holidays = await getHolidaySet();
-    res.json(buildFormAvailability(req.params.slug, month, holidays));
+    res.json(await buildFormAvailability(req.params.slug, month, holidays));
   } catch (error) {
     next(error);
   }
@@ -370,9 +369,8 @@ app.post('/api/quote', async (req, res, next) => {
         return res.status(400).json({ ok: false, message: 'Fecha de visita invalida' });
       }
 
-      const month = normalizeMonthFromDate(normalizedDate);
       const holidays = await getHolidaySet();
-      if (!isFormDateSelectable('cotizacion', normalizedDate, quote.horario, holidays)) {
+      if (!await isFormDateSelectable('cotizacion', normalizedDate, quote.horario, holidays)) {
         return res.status(409).json({ ok: false, message: 'El horario seleccionado ya no esta disponible' });
       }
     }
@@ -386,11 +384,7 @@ app.post('/api/quote', async (req, res, next) => {
 
     createSubmission('cotizacion', quote, meta);
     await appendQuoteBackup(quote, meta);
-    try {
-      await appendQuote(quote, meta);
-    } catch (error) {
-      logger.error({ error }, 'google sheets append failed');
-    }
+    await appendQuote(quote, meta);
 
     res.status(201).json({ ok: true, id: meta.requestId });
   } catch (error) {
