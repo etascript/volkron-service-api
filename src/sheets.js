@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import { config } from './config.js';
+import { normalizeDate } from './calendar.js';
 
 const HEADERS = [
   'created_at',
@@ -21,6 +22,8 @@ const HEADERS = [
 
 let sheetsClient;
 
+const INACTIVE_STATUSES = new Set(['cancelled', 'canceled', 'rechazada', 'cancelada', 'lost', 'reprobado']);
+
 function getSheetsClient() {
   if (sheetsClient) return sheetsClient;
   if (!config.googleSheetsEnabled) throw new Error('Google Sheets is disabled');
@@ -40,6 +43,39 @@ function getSheetsClient() {
 
 function tabRange(range) {
   return `'${config.sheetTab}'!${range}`;
+}
+
+function pad(value) {
+  return String(value).padStart(2, '0');
+}
+
+function normalizeSheetDate(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  const isoLike = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (isoLike) return normalizeDate(`${isoLike[1]}-${pad(isoLike[2])}-${pad(isoLike[3])}`) || '';
+
+  const localLike = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (localLike) return normalizeDate(`${localLike[3]}-${pad(localLike[2])}-${pad(localLike[1])}`) || '';
+
+  const serial = Number(raw);
+  if (Number.isFinite(serial) && serial > 20000 && serial < 80000) {
+    const epoch = Date.UTC(1899, 11, 30);
+    const date = new Date(epoch + serial * 24 * 60 * 60 * 1000);
+    return normalizeDate(date.toISOString().slice(0, 10)) || '';
+  }
+
+  return normalizeDate(raw) || '';
+}
+
+function normalizeSheetSlot(value) {
+  const raw = String(value || '').trim();
+  const matches = [...raw.matchAll(/(\d{1,2}):(\d{2})/g)];
+  if (matches.length < 2) return raw;
+
+  const [start, end] = matches;
+  return `${pad(start[1])}:${start[2]} - ${pad(end[1])}:${end[2]}`;
 }
 
 export async function ensureHeaders() {
@@ -125,12 +161,12 @@ export async function getReservedSlotCounts(month) {
 
   values.forEach((row) => {
     const status = (row[1] || '').toLowerCase();
-    const fechaVisita = row[10] || '';
-    const horario = row[11] || '';
+    const fechaVisita = normalizeSheetDate(row[10]);
+    const horario = normalizeSheetSlot(row[11]);
 
     if (!fechaVisita.startsWith(month)) return;
     if (!horario) return;
-    if (['cancelled', 'canceled', 'rechazada', 'cancelada'].includes(status)) return;
+    if (INACTIVE_STATUSES.has(status)) return;
 
     const key = `${fechaVisita}|${horario}`;
     counts.set(key, (counts.get(key) || 0) + 1);
